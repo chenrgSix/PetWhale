@@ -6,7 +6,8 @@ import {
 
 export interface PreferencesStore {
   get(): PetWhalePreferences;
-  update(patch: Partial<PetWhalePreferences>): void;
+  /** Returns whether the update was persisted; state still updates in-memory on failure. */
+  update(patch: Partial<PetWhalePreferences>): boolean;
   subscribe(listener: () => void): () => void;
 }
 
@@ -28,10 +29,11 @@ export function createPreferencesStore(
       return preferences;
     },
 
-    update(patch: Partial<PetWhalePreferences>): void {
+    update(patch: Partial<PetWhalePreferences>): boolean {
       preferences = { ...preferences, ...patch };
-      savePreferences(preferences, storage);
+      const persisted = savePreferences(preferences, storage);
       for (const listener of listeners) listener();
+      return persisted;
     },
 
     subscribe(listener: () => void): () => void {

@@ -51,4 +51,16 @@ describe('createPreferencesStore', () => {
     expect(store.get().motion).toBe(false);
     expect(store.get().scale).toBe(1.2);
   });
+
+  it('reports persistence failures while keeping the live update', () => {
+    const storage = {
+      getItem: () => null,
+      setItem: () => {
+        throw new Error('quota');
+      },
+    };
+    const store = createPreferencesStore(storage);
+    expect(store.update({ scale: 1.3 })).toBe(false);
+    expect(store.get().scale).toBe(1.3);
+  });
 });

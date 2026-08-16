@@ -75,6 +75,33 @@ export const SETTINGS_CSS = `
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
+.pw-import-pet {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.pw-import-pet input[type="file"] {
+  max-width: 190px;
+}
+.pw-custom-pets {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.pw-custom-pets > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.pw-custom-pets button {
+  color: #d94b5b;
+}
+.pw-error {
+  color: #d94b5b;
+  font-size: 12px;
+}
 `;
 
 const STYLE_TAG_ID = '@petwhale/dsh/overlay';

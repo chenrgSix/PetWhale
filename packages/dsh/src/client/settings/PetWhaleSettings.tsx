@@ -1,14 +1,22 @@
-import { useSyncExternalStore } from 'react';
+import { useState, useSyncExternalStore } from 'react';
+import type { CustomPetId } from '@petwhale/renderer-sprite';
 import type { PreferencesStore } from './preferences-store';
 import {
+  customPetFromFile,
+  customPetsFromPreferences,
+  preferencePatchWithCustomPet,
+  preferencePatchWithoutCustomPet,
+} from './custom-pets';
+import {
   ANCHOR_OPTIONS,
-  PET_OPTIONS,
   SCALE_MAX,
   SCALE_MIN,
   SCALE_STEP,
   SLEEP_OPTIONS,
   petChoiceFromPreferences,
+  petOptionsFromPreferences,
   preferencePatchForPet,
+  type PetChoiceId,
 } from './options';
 import { ROW_CLASS, SETTINGS_CLASS } from '../styles';
 
@@ -25,6 +33,26 @@ export interface PetWhaleSettingsProps {
  */
 export function PetWhaleSettings({ preferences }: PetWhaleSettingsProps) {
   const prefs = useSyncExternalStore(preferences.subscribe, preferences.get);
+  const [importError, setImportError] = useState('');
+  const petOptions = petOptionsFromPreferences(prefs);
+  const customPets = customPetsFromPreferences(prefs);
+
+  const importPet = async (file: File | undefined): Promise<void> => {
+    if (file === undefined) return;
+    setImportError('');
+    try {
+      const pet = await customPetFromFile(file);
+      const persisted = preferences.update(preferencePatchWithCustomPet(prefs, pet));
+      if (!persisted) setImportError('浏览器存储空间不足；宠物仅在当前会话可用');
+    } catch (error) {
+      setImportError(error instanceof Error ? error.message : String(error));
+    }
+  };
+
+  const removePet = (id: CustomPetId, label: string): void => {
+    if (!window.confirm(`确定删除“${label}”吗？`)) return;
+    preferences.update(preferencePatchWithoutCustomPet(prefs, id));
+  };
 
   return (
     <div className={SETTINGS_CLASS}>
@@ -44,19 +72,42 @@ export function PetWhaleSettings({ preferences }: PetWhaleSettingsProps) {
           onChange={(event) =>
             preferences.update(
               preferencePatchForPet(
-                event.target.value as (typeof PET_OPTIONS)[number]['value'],
+                event.target.value as PetChoiceId,
                 prefs.rendererConfig,
               ),
             )
           }
         >
-          {PET_OPTIONS.map((option) => (
+          {petOptions.map((option) => (
             <option key={option.value} value={option.value}>
               {option.label}
             </option>
           ))}
         </select>
       </label>
+
+      <label className="pw-import-pet">
+        <span>导入自定义宠物</span>
+        <input
+          type="file"
+          accept="image/png,image/webp,.apng"
+          onChange={(event) => {
+            void importPet(event.target.files?.[0]);
+            event.target.value = '';
+          }}
+        />
+      </label>
+      {importError ? <div className="pw-error" role="alert">{importError}</div> : null}
+      {customPets.length > 0 ? (
+        <div className="pw-custom-pets">
+          {customPets.map((pet) => (
+            <div key={pet.id}>
+              <span>{pet.label}</span>
+              <button type="button" onClick={() => removePet(pet.id, pet.label)}>删除</button>
+            </div>
+          ))}
+        </div>
+      ) : null}
 
       <label className={ROW_CLASS}>
         <span>位置</span>

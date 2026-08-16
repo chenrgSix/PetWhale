@@ -22,4 +22,18 @@ describe('pet preference mapping', () => {
       rendererConfig: { fit: 0.9 },
     });
   });
+
+  it('selects a stored custom pet', () => {
+    const customPet = {
+      id: 'custom:my-pet' as const,
+      label: 'My Pet',
+      src: 'data:image/png;base64,abc',
+    };
+    const preferences = {
+      ...DEFAULT_PREFERENCES,
+      renderer: 'sprite',
+      rendererConfig: { petId: customPet.id, customPets: [customPet] },
+    };
+    expect(petChoiceFromPreferences(preferences)).toBe(customPet.id);
+  });
 });

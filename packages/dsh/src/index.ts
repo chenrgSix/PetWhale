@@ -27,6 +27,15 @@ export type { PetWhalePreferences } from './client/settings';
 export { createPreferencesStore } from './client/settings/preferences-store';
 export type { PreferencesStore } from './client/settings/preferences-store';
 export {
+  MAX_DSH_CUSTOM_PET_FILE_BYTES,
+  MAX_DSH_CUSTOM_PET_STORAGE_CHARS,
+  customPetFromFile,
+  customPetFromPreferences,
+  customPetsFromPreferences,
+  preferencePatchWithCustomPet,
+  preferencePatchWithoutCustomPet,
+} from './client/settings/custom-pets';
+export {
   ANCHOR_OPTIONS,
   PET_OPTIONS,
   SCALE_MAX,
@@ -34,6 +43,8 @@ export {
   SCALE_STEP,
   SLEEP_OPTIONS,
   petChoiceFromPreferences,
+  petManifestFromPreferences,
+  petOptionsFromPreferences,
   preferencePatchForPet,
 } from './client/settings/options';
 export type { PetChoiceId } from './client/settings/options';

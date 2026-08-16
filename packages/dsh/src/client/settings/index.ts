@@ -45,10 +45,12 @@ export function loadPreferences(storage: Pick<Storage, 'getItem'> = localStorage
 export function savePreferences(
   preferences: PetWhalePreferences,
   storage: Pick<Storage, 'setItem'> = localStorage,
-): void {
+): boolean {
   try {
     storage.setItem(STORAGE_KEY, JSON.stringify(preferences));
+    return true;
   } catch {
     // Storage unavailable (private mode / quota): keep running in-memory.
+    return false;
   }
 }

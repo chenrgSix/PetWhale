@@ -10,15 +10,15 @@
  *   which the DSH server accepts (it rejects browser `file://` origins), so
  *   the connection lives in the main process and state is forwarded to the
  *   renderer over IPC;
- * - open a frameless, transparent, always-on-top, draggable window hosting
- *   the orb renderer;
+ * - open a frameless, transparent, always-on-top, draggable companion window;
  * - provide a system-tray icon + context menu (show/hide, lock position,
- *   toggle size, quit) and persist position / settings.
+ *   choose/import/remove pets, toggle size, quit) and persist settings.
  */
-import { app, BrowserWindow, ipcMain, Menu, Tray, nativeImage } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, Menu, Tray, nativeImage } from 'electron';
 import { execFile } from 'node:child_process';
 import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
 import { PetStateTracker, parseHostFrame } from '../shared/pet-state';
 import {
@@ -30,6 +30,12 @@ import {
   type PetSettings,
 } from '../shared/pet-settings';
 import { listeningPorts } from './listening-ports';
+import {
+  CustomPetStore,
+  detectPetImage,
+  type CustomPetRecord,
+  type CustomPetRendererConfig,
+} from './custom-pets';
 
 const execFileAsync = promisify(execFile);
 
@@ -37,6 +43,7 @@ const DSH_SIGNATURE = '__DSH_BOOT__';
 const POSITION_FILE = 'pet-position.json';
 const SETTINGS_FILE = 'petwhale-settings.json';
 const TRAY_ICON_FILE = 'tray-icon.png';
+const CUSTOM_PETS_DIR = 'custom-pets';
 const REDISCOVER_MS = 10_000;
 
 /** A 32×32 blue orb, generated at build time and written to userData for the tray. */
@@ -211,10 +218,22 @@ function savePosition(position: readonly number[]): void {
 let petWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let petSettings: PetSettings = { ...DEFAULT_PET_SETTINGS };
+let customPetStore: CustomPetStore | null = null;
+let customPets: CustomPetRecord[] = [];
+let selfTestCustomPet: CustomPetRendererConfig | null = null;
 
 function pushConfig(): void {
   if (petWindow !== null && !petWindow.isDestroyed() && !petWindow.webContents.isDestroyed()) {
-    petWindow.webContents.send('petwhale:config', { ...petSettings });
+    const customPet = customPets.find((pet) => pet.id === petSettings.pet);
+    petWindow.webContents.send('petwhale:config', {
+      ...petSettings,
+      customPet:
+        selfTestCustomPet?.id === petSettings.pet
+          ? selfTestCustomPet
+          : customPet !== undefined && customPetStore !== null
+          ? customPetStore.rendererConfig(customPet)
+          : undefined,
+    });
   }
 }
 
@@ -250,10 +269,57 @@ function toggleSize(): void {
 }
 
 function setPet(pet: PetChoiceId): void {
+  if (
+    pet.startsWith('custom:') &&
+    selfTestCustomPet?.id !== pet &&
+    !customPets.some((candidate) => candidate.id === pet)
+  ) return;
   petSettings.pet = pet;
   saveSettings();
   pushConfig();
   refreshTrayMenu();
+}
+
+async function importCustomPet(): Promise<void> {
+  if (customPetStore === null) return;
+  const result = await dialog.showOpenDialog({
+    title: '导入自定义宠物',
+    properties: ['openFile'],
+    filters: [
+      { name: '宠物图片', extensions: ['png', 'apng', 'webp'] },
+    ],
+  });
+  const sourcePath = result.filePaths[0];
+  if (result.canceled || sourcePath === undefined) return;
+  try {
+    const imported = customPetStore.importFile(sourcePath);
+    customPets = customPetStore.load();
+    setPet(imported.id);
+  } catch (error) {
+    dialog.showErrorBox('无法导入宠物', error instanceof Error ? error.message : String(error));
+  }
+}
+
+async function removeCustomPet(pet: CustomPetRecord): Promise<void> {
+  if (customPetStore === null) return;
+  const result = await dialog.showMessageBox({
+    type: 'warning',
+    title: '删除自定义宠物',
+    message: `确定删除“${pet.label}”吗？`,
+    detail: 'PetWhale 保存的副本会被删除，原始图片不受影响。',
+    buttons: ['取消', '删除'],
+    defaultId: 0,
+    cancelId: 0,
+  });
+  if (result.response !== 1) return;
+  try {
+    if (petSettings.pet === pet.id) setPet('orb');
+    customPetStore.remove(pet.id);
+    customPets = customPetStore.load();
+    refreshTrayMenu();
+  } catch (error) {
+    dialog.showErrorBox('无法删除宠物', error instanceof Error ? error.message : String(error));
+  }
 }
 
 function buildMenu(): Menu {
@@ -275,13 +341,29 @@ function buildMenu(): Menu {
     },
     {
       label: '更换宠物',
-      submenu: petMenuOptions(petSettings.pet).map((option) => ({
-        label: option.label,
-        type: 'radio' as const,
-        checked: option.checked,
-        click: () => setPet(option.id),
-      })),
+      submenu: [
+        ...petMenuOptions(petSettings.pet, customPets).map((option) => ({
+          label: option.label,
+          type: 'radio' as const,
+          checked: option.checked,
+          click: () => setPet(option.id),
+        })),
+        { type: 'separator' as const },
+        {
+          label: '导入自定义宠物…',
+          click: () => void importCustomPet(),
+        },
+      ],
     },
+    ...(customPets.length > 0
+      ? [{
+          label: '删除自定义宠物',
+          submenu: customPets.map((pet) => ({
+            label: pet.label,
+            click: () => void removeCustomPet(pet),
+          })),
+        }]
+      : []),
     { type: 'separator' },
     {
       label: '退出 PetWhale 宠物',
@@ -351,10 +433,34 @@ ipcMain.on('petwhale:menu', (event) => {
 
 app.whenReady().then(() => {
   if (process.platform === 'darwin') app.dock?.hide();
+  customPetStore = new CustomPetStore(join(app.getPath('userData'), CUSTOM_PETS_DIR));
+  customPets = customPetStore.load();
   petSettings = loadSettings();
+  if (
+    petSettings.pet.startsWith('custom:') &&
+    !customPets.some((pet) => pet.id === petSettings.pet)
+  ) {
+    petSettings.pet = 'orb';
+    saveSettings();
+  }
   const selfTestPet = process.env.PETWINDOW_SELF_TEST_PET;
   if (process.env.PETWINDOW_SELF_TEST === '1' && isPetChoiceId(selfTestPet)) {
     petSettings.pet = selfTestPet;
+  }
+  const selfTestCustomPath = process.env.PETWINDOW_SELF_TEST_CUSTOM_PET_PATH;
+  if (process.env.PETWINDOW_SELF_TEST === '1' && selfTestCustomPath) {
+    try {
+      if (detectPetImage(readFileSync(selfTestCustomPath)) !== null) {
+        selfTestCustomPet = {
+          id: 'custom:self-test',
+          label: '自定义宠物自检',
+          src: pathToFileURL(selfTestCustomPath).href,
+        };
+        petSettings.pet = selfTestCustomPet.id;
+      }
+    } catch {
+      // The regular self-test will report a missing image.
+    }
   }
   openPetWindow();
 
@@ -378,8 +484,8 @@ app.whenReady().then(() => {
   }, REDISCOVER_MS);
 
   if (process.env.PETWINDOW_SELF_TEST === '1') {
-    // Self-test: after the renderer has had time to mount the orb, sample
-    // the canvas and the live connection state, write the verdict to a file
+    // Self-test: after the active renderer has mounted, sample the canvas or
+    // image and the live connection state, then write the verdict to a file
     // (GUI-subsystem processes have no usable stdout on Windows), then exit.
     setTimeout(async () => {
       const window = petWindow;

@@ -2,8 +2,11 @@ import { CompanionEngine } from '@petwhale/core';
 import { OrbRenderer } from '@petwhale/renderer-orb';
 import {
   SpriteRenderer,
+  isCustomPetId,
+  isCustomPetManifest,
   isSpritePetId,
   spritePetById,
+  type CustomPetManifest,
 } from '@petwhale/renderer-sprite';
 import { isPetChoiceId, type PetChoiceId } from '../shared/pet-settings';
 import { IpcPetSource } from './pet-source';
@@ -32,13 +35,19 @@ const engine = new CompanionEngine(source, {
 let activePet: PetChoiceId | null = null;
 let rendererGeneration = 0;
 
-async function setPet(pet: PetChoiceId): Promise<void> {
+async function setPet(
+  pet: PetChoiceId,
+  customPet?: CustomPetManifest,
+): Promise<void> {
+  if (isCustomPetId(pet) && (!customPet || customPet.id !== pet)) pet = 'orb';
   if (pet === activePet) return;
   activePet = pet;
   const generation = ++rendererGeneration;
-  const renderer = isSpritePetId(pet)
-    ? new SpriteRenderer(spritePetById(pet))
-    : new OrbRenderer();
+  const renderer = isCustomPetId(pet) && customPet
+    ? new SpriteRenderer(customPet)
+    : isSpritePetId(pet)
+      ? new SpriteRenderer(spritePetById(pet))
+      : new OrbRenderer();
   await engine.setRenderer(renderer, container, { scale: pet === 'orb' ? 1.5 : 1 });
   if (generation !== rendererGeneration) renderer.dispose();
 }
@@ -50,9 +59,15 @@ source.start();
 
 // Apply live window config (position lock) from the main process.
 window.petwhale?.onConfig((config) => {
-  const { locked, pet } = config as { locked?: boolean; pet?: unknown };
+  const { locked, pet, customPet } = config as {
+    locked?: boolean;
+    pet?: unknown;
+    customPet?: unknown;
+  };
   document.body.classList.toggle('locked', locked === true);
-  if (isPetChoiceId(pet)) void setPet(pet);
+  if (isPetChoiceId(pet)) {
+    void setPet(pet, isCustomPetManifest(customPet) ? customPet : undefined);
+  }
 });
 
 // Surface the current state for diagnostics and the self-test.

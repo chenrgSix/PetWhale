@@ -83,15 +83,17 @@ Playground 里可以手动切换 8 种状态 / 6 种情绪 / 触发动作，也�
 - **状态映射**：`PetStateTracker`（共享模块）——`host/session-status` running → thinking / working、`host/agent-error` → error、运行结束 → success transient；agent 干活时 Orb 会动起来。
 - **交互**：整窗可拖动，位置持久化（`userData/pet-position.json`）；右键 → 退出菜单。
 - **更换宠物**：托盘菜单 →「更换宠物」可在能量球、蓝色小鲸、橘色小猫之间即时切换并持久化。
-- **自检**：`PETWINDOW_SELF_TEST=1 pnpm pet` 会打开窗口、采样 Orb 像素与连接状态、把结果写到 `userData/petwhale-self-test.json` 后自动退出。
+- **自定义宠物**：托盘菜单 →「更换宠物」→「导入自定义宠物…」支持 PNG、APNG、WebP；应用在 `userData/custom-pets/` 保存独立副本，并可从「删除自定义宠物」移除。
+- **自检**：`PETWINDOW_SELF_TEST=1 pnpm pet` 会打开窗口、采样当前 Renderer 与连接状态、把结果写到 `userData/petwhale-self-test.json` 后自动退出。
 
 ## @petwhale/dsh（M2 + M3 + M5 + M9）
 
 - **插件入口**：`inject: ['slots', 'sessions']` + `apply(ctx)`，通过 `ctx.slots.inject('shell.overlay', ...)` 注册 `id: 'petwhale'` 的浮层条目（设计文档 §17 的官方规则）。
 - **类型**：按 DeepSeek Harness **0.1.0-rc.5** 的真实 API 以环境模块声明（`src/client/types/dsh.d.ts`）镜像；源码按真实插件风格从 `@deepseek-ai/dsh-client-runtime/client` 导入类型。仓库自包含可编译；接入真实包时 TypeScript 自动使用真实类型。
 - **状态映射**：`DshCompanionSource` 订阅 `ctx.sessions.list` → 当前会话 `binding.session`（`ObservableSnapshot<ConversationSnapshot>`）→ `composeSnapshot`（推理→thinking、工具→working、等待→waiting、错误→error、完成→success transient）。
-- **bundle**：`pnpm --filter @petwhale/dsh build` 产出 DSH ModuleLoader 格式的 `lib/client.js`（`window.__ModuleLoader__.load({ id: "@petwhale/dsh", factory })`，react 等平台模块 external，core/orb 内联），可直接作为 `/plugins/@petwhale/dsh/client.js` 供给运行时。
-- **设置（M5）**：`settings.section` 页面（启用 / 渲染器 / 位置 / 缩放 / 动画 / 空闲入睡），localStorage 持久化；共享 `PreferencesStore` 让设置实时作用于运行中的 Orb（缩放/动画重新挂载渲染器、入睡时长热更新调度器策略、位置移动浮层、禁用则隐藏宠物）。
+- **bundle**：`pnpm --filter @petwhale/dsh build` 产出 DSH ModuleLoader 格式的 `lib/client.js`（`window.__ModuleLoader__.load({ id: "@petwhale/dsh", factory })`，react 等平台模块 external，core 与 renderers 内联），可直接作为 `/plugins/@petwhale/dsh/client.js` 供给运行时。
+- **设置（M5）**：`settings.section` 页面（启用 / 宠物 / 位置 / 缩放 / 动画 / 空闲入睡），localStorage 持久化；共享 `PreferencesStore` 让设置实时作用于运行中的宠物（切换/缩放/动画重新挂载渲染器、入睡时长热更新调度器策略、位置移动浮层、禁用则隐藏宠物）。
+- **浏览器自定义宠物**：设置页可导入、切换和删除 PNG/APNG/WebP；单文件上限 512 KB、总资源约 2 MB，保存在当前 DSH 浏览器配置中，不与桌面端自动同步。
 - **兼容门**：`tests/compatibility/dsh-bundle.test.ts` 在模拟浏览器沙箱中加载真实 bundle，端到端验证注册与状态管线（先 `pnpm build` 再 `pnpm test` 生效）。
 - **安装到宿主（M4 准备）**：`node scripts/install-dsh-local.mjs` 把构建产物复制进 web profile 的 node_modules、向 `cordis.patch.yml` 追加插件行、声明依赖 —— 默认 dry-run，`--apply` 才写入（自动备份）。
 

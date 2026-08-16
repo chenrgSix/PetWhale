@@ -3,6 +3,14 @@ import whaleUrl from './assets/whale.png';
 
 export { animationForState } from './animations';
 export type { SpriteAnimationSpec } from './animations';
+export {
+  CUSTOM_PET_PREFIX,
+  detectCustomPetMime,
+  isCustomPetId,
+  isCustomPetManifest,
+  isStoredCustomPetManifest,
+} from './custom';
+export type { CustomPetId, CustomPetManifest, CustomPetMime } from './custom';
 export { SpriteRenderer } from './sprite';
 export type { SpritePetManifest, SpriteRendererOptions } from './sprite';
 

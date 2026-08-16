@@ -1,7 +1,17 @@
-import { SPRITE_PETS, isSpritePetId, type SpritePetId } from '@petwhale/renderer-sprite';
+import {
+  SPRITE_PETS,
+  isCustomPetId,
+  isSpritePetId,
+  spritePetById,
+  type CustomPetId,
+  type CustomPetManifest,
+  type SpritePetId,
+  type SpritePetManifest,
+} from '@petwhale/renderer-sprite';
 import type { PetWhalePreferences } from './index';
+import { customPetFromPreferences, customPetsFromPreferences } from './custom-pets';
 
-export type PetChoiceId = 'orb' | SpritePetId;
+export type PetChoiceId = 'orb' | SpritePetId | CustomPetId;
 
 export const PET_OPTIONS: ReadonlyArray<{ label: string; value: PetChoiceId }> = [
   { label: '能量球', value: 'orb' },
@@ -12,7 +22,30 @@ export function petChoiceFromPreferences(preferences: PetWhalePreferences): PetC
   if (isSpritePetId(preferences.renderer)) return preferences.renderer;
   const configuredPet = preferences.rendererConfig?.petId;
   if (preferences.renderer === 'sprite' && isSpritePetId(configuredPet)) return configuredPet;
+  if (
+    preferences.renderer === 'sprite' &&
+    isCustomPetId(configuredPet) &&
+    customPetFromPreferences(preferences, configuredPet) !== null
+  ) return configuredPet;
   return 'orb';
+}
+
+export function petOptionsFromPreferences(
+  preferences: PetWhalePreferences,
+): ReadonlyArray<{ label: string; value: PetChoiceId }> {
+  return [
+    ...PET_OPTIONS,
+    ...customPetsFromPreferences(preferences).map((pet) => ({ label: pet.label, value: pet.id })),
+  ];
+}
+
+export function petManifestFromPreferences(
+  preferences: PetWhalePreferences,
+): SpritePetManifest | CustomPetManifest | null {
+  const pet = petChoiceFromPreferences(preferences);
+  if (isSpritePetId(pet)) return spritePetById(pet);
+  if (isCustomPetId(pet)) return customPetFromPreferences(preferences, pet);
+  return null;
 }
 
 export function preferencePatchForPet(
