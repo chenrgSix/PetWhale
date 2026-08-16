@@ -1,5 +1,6 @@
 import type { CompanionState } from '@petwhale/core';
 import { describe, expect, it } from 'vitest';
+import { shouldRender } from './orb';
 import {
   animationForState,
   clamp01,
@@ -9,6 +10,23 @@ import {
   phase,
   STATE_COLORS,
 } from './visuals';
+
+describe('animation loop throttle (orb.ts)', () => {
+  it('always renders the first frame so the clock seeds itself', () => {
+    expect(shouldRender(100, 0, 41.7)).toBe(true);
+  });
+
+  it('renders once the frame budget elapsed', () => {
+    expect(shouldRender(100, 59, 42)).toBe(false);
+    expect(shouldRender(100, 58, 42)).toBe(true);
+  });
+
+  it('renders for a busy fps budget (working)', () => {
+    // 60fps → ~16.7ms budget.
+    expect(shouldRender(100, 90, 16.7)).toBe(false);
+    expect(shouldRender(100, 83.3, 16.7)).toBe(true);
+  });
+});
 
 describe('orb visuals mapping', () => {
   const states: CompanionState[] = [

@@ -22,6 +22,15 @@ export interface OrbRendererOptions extends CompanionRendererOptions {
   radius?: number;
 }
 
+/**
+ * Throttle decision for the animation loop: render when the frame budget
+ * elapsed, and always render the very first frame (lastFrame === 0) so the
+ * clock seeds itself — otherwise the orb would never paint.
+ */
+export function shouldRender(now: number, lastFrame: number, budgetMs: number): boolean {
+  return lastFrame === 0 || now - lastFrame >= budgetMs;
+}
+
 const SHAKE_DURATION_MS = 450;
 const BURST_DURATION_MS = 650;
 
@@ -142,8 +151,7 @@ export class OrbRenderer implements CompanionRenderer {
 
   private loop(time: number): void {
     if (!this.running || this.disposed) return;
-    const delta = this.lastFrameTime === 0 ? 0 : time - this.lastFrameTime;
-    if (delta >= this.frameBudgetMs) {
+    if (shouldRender(time, this.lastFrameTime, this.frameBudgetMs)) {
       this.lastFrameTime = time;
       this.renderFrame(time);
     }
@@ -165,14 +173,12 @@ export class OrbRenderer implements CompanionRenderer {
   private renderFrame(time: number): void {
     const ctx = this.ctx;
     const canvas = this.canvas;
-    if (!ctx || !canvas || !this.visible) return;
+    if (!ctx || !canvas || !this.visible || !this.snapshot) return;
 
+    const snapshot = this.snapshot;
     const width = canvas.width / Math.min(window.devicePixelRatio || 1, 3);
     const height = canvas.height / Math.min(window.devicePixelRatio || 1, 3);
     ctx.clearRect(0, 0, width, height);
-
-    const snapshot = this.snapshot;
-    if (!snapshot) return;
 
     const colors = STATE_COLORS[snapshot.state];
     const centerX = width / 2;

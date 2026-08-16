@@ -68,6 +68,8 @@ export function apply(ctx: ClientContext): void {
       ),
     );
     console.info('[petwhale] shell.overlay entry registered, engine started');
+    // Debug hook for diagnosing the live harness.
+    (window as { __petwhale?: unknown }).__petwhale = { engine, preferences };
 
     return () => {
       for (const dispose of disposers.reverse()) dispose();
