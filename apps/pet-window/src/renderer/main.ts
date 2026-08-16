@@ -6,6 +6,7 @@ declare global {
   interface Window {
     petwhale?: {
       onState: (callback: (snapshot: unknown) => void) => () => void;
+      onConfig: (callback: (config: unknown) => void) => () => void;
       status: () => Promise<unknown>;
       quit: () => Promise<void>;
       showMenu: () => void;
@@ -27,6 +28,12 @@ void engine.setRenderer(renderer, container, { scale: 1.5 });
 
 engine.start();
 source.start();
+
+// Apply live window config (position lock) from the main process.
+window.petwhale?.onConfig((config) => {
+  const { locked } = config as { locked?: boolean };
+  document.body.classList.toggle('locked', locked === true);
+});
 
 // Surface the current state for diagnostics and the self-test.
 setInterval(() => {

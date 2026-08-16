@@ -19,7 +19,9 @@ export interface PetWhalePreferences {
 }
 
 export const DEFAULT_PREFERENCES: PetWhalePreferences = {
-  enabled: true,
+  // The in-page overlay is opt-in now: the standalone desktop pet
+  // (apps/pet-window) is the primary companion surface.
+  enabled: false,
   renderer: 'orb',
   anchor: 'bottom-right',
   scale: 1,
@@ -27,7 +29,8 @@ export const DEFAULT_PREFERENCES: PetWhalePreferences = {
   sleepAfterMs: 5 * 60_000,
 };
 
-const STORAGE_KEY = 'petwhale.preferences.v1';
+// v2: the in-page overlay became opt-in (default enabled: false).
+const STORAGE_KEY = 'petwhale.preferences.v2';
 
 export function loadPreferences(storage: Pick<Storage, 'getItem'> = localStorage): PetWhalePreferences {
   try {

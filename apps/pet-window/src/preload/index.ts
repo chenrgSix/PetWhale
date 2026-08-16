@@ -11,6 +11,15 @@ contextBridge.exposeInMainWorld('petwhale', {
       ipcRenderer.removeListener('petwhale:state', listener);
     };
   },
+  onConfig: (callback: (config: unknown) => void): (() => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, config: unknown): void => {
+      callback(config);
+    };
+    ipcRenderer.on('petwhale:config', listener);
+    return () => {
+      ipcRenderer.removeListener('petwhale:config', listener);
+    };
+  },
   status: (): Promise<unknown> => ipcRenderer.invoke('petwhale:status'),
   quit: (): Promise<void> => ipcRenderer.invoke('petwhale:quit'),
   showMenu: (): void => {

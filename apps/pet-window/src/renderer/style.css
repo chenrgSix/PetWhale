@@ -18,6 +18,12 @@ body {
   cursor: grab;
 }
 
+/* Locked position: the window stops being draggable. */
+body.locked #pet {
+  -webkit-app-region: no-drag;
+  cursor: default;
+}
+
 #label {
   position: absolute;
   bottom: 12px;

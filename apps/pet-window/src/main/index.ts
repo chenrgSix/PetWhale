@@ -12,9 +12,10 @@
  *   renderer over IPC;
  * - open a frameless, transparent, always-on-top, draggable window hosting
  *   the orb renderer;
- * - persist the pet's screen position and provide a quit affordance.
+ * - provide a system-tray icon + context menu (show/hide, lock position,
+ *   toggle size, quit) and persist position / settings.
  */
-import { app, BrowserWindow, ipcMain, Menu } from 'electron';
+import { app, BrowserWindow, ipcMain, Menu, Tray, nativeImage } from 'electron';
 import { execFile } from 'node:child_process';
 import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -25,8 +26,25 @@ const execFileAsync = promisify(execFile);
 
 const DSH_SIGNATURE = '__DSH_BOOT__';
 const POSITION_FILE = 'pet-position.json';
-const WINDOW_SIZE = { width: 300, height: 380 };
+const SETTINGS_FILE = 'petwhale-settings.json';
+const TRAY_ICON_FILE = 'tray-icon.png';
 const REDISCOVER_MS = 10_000;
+
+/** A 32×32 blue orb, generated at build time and written to userData for the tray. */
+const TRAY_ICON_BASE64 =
+  'iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAFuSURBVFhH7ZevUsNAEMYrkUgkkseo5A2gd8wEiayso46Z3HUikZWVSCSPEFmJrKzE7TJ7DaH5joRc7jIMA9/MzyS3++XPZm8zmfzrNyq75xNteIrIcVybVMryrTb0pCy9acv8JXLe0B3GRsndoaXSM+vC0PYmp0vMFSyd09xLHoCyVGDO3tIrWmPCIShLz8H1oS0vMFEctEGPVsm78xPE07s4gwuuJ8rSLiv4FP0akqvEwJQoQw/o2ZCy9IJBSTG0Rc9a8ng6m0wiZpYv0Nvp0HD8gNRIR0Vvp5mha1w8Egv0dhq7AGsML9HbyW02uHgM2i7gx2vgquBzXDwKhqfoXWusLviBdEP0bEjeDwYlZUVr9GyoakY7LzAB0uRam9CxYoeQNoKGE5ntMEEcVAYNJW7yTVaQ9CpfGHp8q6oeIndHKgeZH0v28GG7JD0GPfYuZTmfySekDO19o08O52nTq9qHqvoTWiJJ/gP+nN4BDe1NvJvLQM0AAAAASUVORK5CYII=';
+
+interface PetSettings {
+  locked: boolean;
+  size: 'small' | 'large';
+}
+
+const PET_SIZES: Record<PetSettings['size'], { width: number; height: number }> = {
+  small: { width: 200, height: 253 },
+  large: { width: 300, height: 380 },
+};
+
+const DEFAULT_SETTINGS: PetSettings = { locked: false, size: 'large' };
 
 // ---------- DSH discovery (the port changes on every Telos launch) ----------
 
@@ -160,6 +178,33 @@ async function connectLoop(): Promise<void> {
   };
 }
 
+// ---------- settings ----------
+
+function settingsFile(): string {
+  return join(app.getPath('userData'), SETTINGS_FILE);
+}
+
+function loadSettings(): PetSettings {
+  try {
+    const parsed = JSON.parse(readFileSync(settingsFile(), 'utf8')) as Partial<PetSettings>;
+    return {
+      locked: parsed.locked === true,
+      size: parsed.size === 'small' ? 'small' : 'large',
+    };
+  } catch {
+    return { ...DEFAULT_SETTINGS };
+  }
+}
+
+function saveSettings(): void {
+  try {
+    mkdirSync(app.getPath('userData'), { recursive: true });
+    writeFileSync(settingsFile(), JSON.stringify(petSettings));
+  } catch {
+    // Settings persistence is best-effort.
+  }
+}
+
 // ---------- window lifecycle ----------
 
 function positionFile(): string {
@@ -185,10 +230,77 @@ function savePosition(position: readonly number[]): void {
   }
 }
 
+let petWindow: BrowserWindow | null = null;
+let tray: Tray | null = null;
+let petSettings: PetSettings = DEFAULT_SETTINGS;
+
+function pushConfig(): void {
+  if (petWindow !== null && !petWindow.isDestroyed() && !petWindow.webContents.isDestroyed()) {
+    petWindow.webContents.send('petwhale:config', { locked: petSettings.locked, size: petSettings.size });
+  }
+}
+
+function refreshTrayMenu(): void {
+  tray?.setContextMenu(buildMenu());
+}
+
+function toggleVisible(): void {
+  if (petWindow !== null && !petWindow.isDestroyed() && petWindow.isVisible()) {
+    petWindow.hide();
+  } else {
+    const window = openPetWindow();
+    window.show();
+  }
+  refreshTrayMenu();
+}
+
+function setLocked(locked: boolean): void {
+  petSettings.locked = locked;
+  saveSettings();
+  pushConfig();
+  refreshTrayMenu();
+}
+
+function toggleSize(): void {
+  petSettings.size = petSettings.size === 'large' ? 'small' : 'large';
+  saveSettings();
+  if (petWindow !== null && !petWindow.isDestroyed()) {
+    petWindow.setSize(PET_SIZES[petSettings.size].width, PET_SIZES[petSettings.size].height);
+  }
+  pushConfig();
+  refreshTrayMenu();
+}
+
+function buildMenu(): Menu {
+  const visible = petWindow !== null && !petWindow.isDestroyed() && petWindow.isVisible();
+  return Menu.buildFromTemplate([
+    {
+      label: visible ? '隐藏宠物' : '显示宠物',
+      click: () => toggleVisible(),
+    },
+    {
+      label: '锁定位置',
+      type: 'checkbox',
+      checked: petSettings.locked,
+      click: (item) => setLocked(item.checked),
+    },
+    {
+      label: petSettings.size === 'large' ? '切换为小尺寸' : '切换为大尺寸',
+      click: () => toggleSize(),
+    },
+    { type: 'separator' },
+    {
+      label: '退出 PetWhale 宠物',
+      click: () => app.quit(),
+    },
+  ]);
+}
+
 function createPetWindow(): BrowserWindow {
   const saved = loadPosition();
+  const size = PET_SIZES[petSettings.size];
   const window = new BrowserWindow({
-    ...WINDOW_SIZE,
+    ...size,
     ...(saved ? { x: saved.x, y: saved.y } : {}),
     frame: false,
     transparent: true,
@@ -209,38 +321,56 @@ function createPetWindow(): BrowserWindow {
   window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
   window.on('moved', () => savePosition(window.getPosition()));
   window.on('close', () => savePosition(window.getPosition()));
-  window.webContents.on('did-finish-load', () => pushState());
+  window.webContents.on('did-finish-load', () => {
+    pushState();
+    pushConfig();
+  });
   void window.loadFile(join(__dirname, '../renderer/index.html'));
   return window;
 }
 
-// ---------- app lifecycle ----------
-
-let petWindow: BrowserWindow | null = null;
-
-function openPetWindow(): void {
-  if (petWindow !== null && !petWindow.isDestroyed()) return;
+function openPetWindow(): BrowserWindow {
+  if (petWindow !== null && !petWindow.isDestroyed()) return petWindow;
   petWindow = createPetWindow();
   petWindow.on('closed', () => {
     petWindow = null;
   });
+  return petWindow;
 }
 
+// ---------- IPC ----------
+
 ipcMain.handle('petwhale:quit', () => app.quit());
-ipcMain.handle('petwhale:status', () => connectionDiagnostics());
+ipcMain.handle('petwhale:status', () => ({
+  ...connectionDiagnostics(),
+  locked: petSettings.locked,
+  size: petSettings.size,
+}));
 ipcMain.on('petwhale:menu', (event) => {
-  const menu = Menu.buildFromTemplate([
-    {
-      label: '退出 PetWhale 宠物',
-      click: () => app.quit(),
-    },
-  ]);
+  const menu = buildMenu();
   const window = BrowserWindow.fromWebContents(event.sender);
   if (window !== null) menu.popup({ window });
 });
 
+// ---------- app lifecycle ----------
+
 app.whenReady().then(() => {
+  petSettings = loadSettings();
   openPetWindow();
+
+  const trayIconPath = join(app.getPath('userData'), TRAY_ICON_FILE);
+  try {
+    mkdirSync(app.getPath('userData'), { recursive: true });
+    writeFileSync(trayIconPath, Buffer.from(TRAY_ICON_BASE64, 'base64'));
+  } catch {
+    // Tray icon write is best-effort; the tray falls back to an empty icon.
+  }
+  const icon = nativeImage.createFromPath(trayIconPath);
+  tray = new Tray(icon);
+  tray.setToolTip('PetWhale 宠物');
+  tray.on('click', () => toggleVisible());
+  refreshTrayMenu();
+
   void connectLoop();
   setInterval(() => {
     void connectLoop();
