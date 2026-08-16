@@ -95,9 +95,20 @@ function stepPatchRoster(target, apply) {
       return;
     }
     backup(file);
-    const trimmed = content.trim();
-    content = trimmed === '[]' ? row : `${trimmed.replace(/\s*$/, '')}\n${row}`;
-    writeFileSync(file, content);
+    // An empty patch is a bare `[]` (possibly after comments): replace that
+    // line with the insert block. Otherwise append the block to the list.
+    const lines = content.split(/\r?\n/);
+    const lastSignificant = [...lines]
+      .reverse()
+      .find((line) => line.trim() !== '' && !line.trim().startsWith('#'));
+    if (lastSignificant !== undefined && lastSignificant.trim() === '[]') {
+      const index = lines.lastIndexOf(lastSignificant);
+      lines.splice(index, 1, row.replace(/\n$/, ''));
+      content = lines.join('\n');
+    } else {
+      content = `${content.replace(/\s*$/, '')}\n${row}`;
+    }
+    writeFileSync(file, content.endsWith('\n') ? content : `${content}\n`);
   }
 }
 
