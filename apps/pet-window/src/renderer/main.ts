@@ -14,6 +14,7 @@ declare global {
 }
 
 const statusEl = document.getElementById('status') as HTMLElement;
+const labelEl = document.getElementById('label') as HTMLElement;
 const container = document.getElementById('pet') as HTMLElement;
 
 const source = new IpcPetSource();
@@ -34,6 +35,16 @@ setInterval(() => {
     source: source.getSnapshot().state,
   });
 }, 500);
+
+// Activity label: the tool name while working, the state name otherwise.
+setInterval(() => {
+  const snap = source.getSnapshot();
+  const text =
+    snap.activity?.label ??
+    (snap.state !== 'idle' && snap.state !== 'sleeping' ? snap.state : '');
+  labelEl.textContent = text;
+  labelEl.style.opacity = text ? '1' : '0';
+}, 250);
 
 // Right-click → native context menu (quit affordance).
 container.addEventListener('contextmenu', (event) => {

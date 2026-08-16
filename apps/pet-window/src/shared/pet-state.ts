@@ -56,21 +56,35 @@ export function parseHostFrame(data: unknown): HostFrame | null {
 
 /**
  * Coarse activity classification from a host/remote-event until real traffic
- * is captured: any tool-ish token → working, reasoning tokens → thinking,
- * assistant output tokens → answering.
+ * is captured: any tool-ish token → working (with a best-effort tool name),
+ * reasoning tokens → thinking, assistant output tokens → answering.
  */
 export function activityFromRemoteEvent(
   event: string | undefined,
   args: unknown[] | undefined,
-): PetActivity['kind'] | null {
+): PetActivity | null {
   const haystack = JSON.stringify({ event, args }).toLowerCase();
   if (haystack === undefined || haystack === '') return null;
   if (/tool\/|toolcall|runningcall|bash|pwsh|shell|exec|edit|fs\/|subagent|workflow|command|todo/.test(haystack)) {
-    return 'tool';
+    return { kind: 'tool', label: toolNameFromArgs(args) };
   }
-  if (/reasoning|think|deliberat/.test(haystack)) return 'reasoning';
-  if (/assistant|answer|message|chunk|turn\/end|text/.test(haystack)) return 'answer';
+  if (/reasoning|think|deliberat/.test(haystack)) return { kind: 'reasoning' };
+  if (/assistant|answer|message|chunk|turn\/end|text/.test(haystack)) return { kind: 'answer' };
   return null;
+}
+
+/**
+ * Best-effort tool name from the remote-event args: look for a
+ * `"name":"<identifier>"` value that reads like a tool id.
+ */
+function toolNameFromArgs(args: unknown[] | undefined): string | undefined {
+  try {
+    const json = JSON.stringify(args ?? []);
+    const match = json.match(/"name"\s*:\s*"([a-zA-Z][a-zA-Z0-9_\-.]{1,39})"/);
+    return match?.[1];
+  } catch {
+    return undefined;
+  }
 }
 
 /**
@@ -134,12 +148,12 @@ export class PetStateTracker {
         break;
       }
       case 'host/remote-event': {
-        const kind = activityFromRemoteEvent(
+        const activity = activityFromRemoteEvent(
           frame.event as string | undefined,
           frame.args as unknown[] | undefined,
         );
-        if (kind !== null) {
-          this.activity = { kind };
+        if (activity !== null) {
+          this.activity = activity;
           this.wasActive = true;
         } else {
           this.activity = undefined;

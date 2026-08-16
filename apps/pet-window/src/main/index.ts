@@ -16,7 +16,7 @@
  */
 import { app, BrowserWindow, ipcMain, Menu } from 'electron';
 import { execFile } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { PetStateTracker, parseHostFrame } from '../shared/pet-state';
@@ -79,9 +79,23 @@ const tracker = new PetStateTracker();
 let webSocket: WebSocket | null = null;
 let baseUrl: string | null = null;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-let rediscoverTimer: ReturnType<typeof setInterval> | null = null;
 let lastDiscovery: string | null = null;
 let lastClose: { code: number; reason: string } | null = null;
+
+/** PETWINDOW_LOG_FRAMES=1 appends every raw host frame to userData for mapping refinement. */
+const logFrames = process.env.PETWINDOW_LOG_FRAMES === '1';
+
+function appendFrame(raw: string): void {
+  try {
+    mkdirSync(app.getPath('userData'), { recursive: true });
+    appendFileSync(
+      join(app.getPath('userData'), 'petwhale-frames.log'),
+      `${new Date().toISOString()} ${raw}\n`,
+    );
+  } catch {
+    // Frame logging is best-effort.
+  }
+}
 
 function connectionDiagnostics(): Record<string, unknown> {
   return {
@@ -124,7 +138,9 @@ async function connectLoop(): Promise<void> {
     lastClose = null;
   };
   socket.onmessage = (event) => {
-    const frame = parseHostFrame(event.data);
+    const raw = String(event.data);
+    if (logFrames) appendFrame(raw);
+    const frame = parseHostFrame(raw);
     if (frame !== null) {
       tracker.ingest(frame);
       pushState();
@@ -226,7 +242,7 @@ ipcMain.on('petwhale:menu', (event) => {
 app.whenReady().then(() => {
   openPetWindow();
   void connectLoop();
-  rediscoverTimer = setInterval(() => {
+  setInterval(() => {
     void connectLoop();
   }, REDISCOVER_MS);
 

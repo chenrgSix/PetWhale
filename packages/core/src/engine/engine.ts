@@ -60,6 +60,8 @@ export class CompanionEngine {
   private renderer: CompanionRenderer | null = null;
   private rendererOptions: CompanionRendererOptions = {};
   private lastSnapshot: CompanionSnapshot | null = null;
+  private lastPublished: CompanionSnapshot | null = null;
+  private readonly updateListeners = new Set<() => void>();
   private unsubscribeSource: (() => void) | null = null;
   private unsubscribeScheduler: (() => void) | null = null;
   private started = false;
@@ -83,6 +85,26 @@ export class CompanionEngine {
 
   get effectiveState(): CompanionState {
     return this.scheduler.getEffectiveState();
+  }
+
+  /**
+   * The most recently published effective snapshot, or null before the first
+   * publish. Reference-stable between updates (usable as a
+   * useSyncExternalStore getSnapshot source).
+   */
+  getLastSnapshot(): CompanionSnapshot | null {
+    return this.lastPublished;
+  }
+
+  /**
+   * Subscribe to snapshot publications (the updates the renderer receives).
+   * Returns an unsubscribe.
+   */
+  onUpdate(listener: () => void): () => void {
+    this.updateListeners.add(listener);
+    return () => {
+      this.updateListeners.delete(listener);
+    };
   }
 
   /**
@@ -188,6 +210,8 @@ export class CompanionEngine {
     this.renderer?.dispose();
     this.renderer = null;
     this.lastSnapshot = null;
+    this.lastPublished = null;
+    this.updateListeners.clear();
   }
 
   private ingest(): void {
@@ -206,6 +230,8 @@ export class CompanionEngine {
       state,
       since,
     };
+    this.lastPublished = snapshot;
     this.renderer.update(snapshot);
+    for (const listener of this.updateListeners) listener();
   }
 }

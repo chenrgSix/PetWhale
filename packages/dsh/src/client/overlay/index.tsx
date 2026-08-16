@@ -7,7 +7,7 @@ import type {
 import { OrbRenderer } from '@petwhale/renderer-orb';
 import type { PreferencesStore } from '../settings/preferences-store';
 import { clampOverlayPosition } from './position';
-import { OVERLAY_CLASS, PET_CLASS } from '../styles';
+import { LABEL_CLASS, OVERLAY_CLASS, PET_CLASS } from '../styles';
 
 /** The shell.overlay entry id (design doc §17). */
 export const OVERLAY_ENTRY_ID = 'petwhale';
@@ -39,6 +39,9 @@ interface DragState {
  */
 export function PetWhaleOverlay({ engine, preferences }: PetWhaleOverlayProps) {
   const prefs = useSyncExternalStore(preferences.subscribe, preferences.get);
+  // The current effective snapshot (for the activity label), published by
+  // the engine on every renderer update.
+  const snapshot = useSyncExternalStore(engine.onUpdate, () => engine.getLastSnapshot());
   const containerRef = useRef<HTMLDivElement | null>(null);
   const overlayRef = useRef<HTMLDivElement | null>(null);
   const dragState = useRef<DragState | null>(null);
@@ -135,6 +138,9 @@ export function PetWhaleOverlay({ engine, preferences }: PetWhaleOverlayProps) {
       onPointerCancel={handlePointerUp}
     >
       <div ref={containerRef} className={PET_CLASS} />
+      {snapshot?.activity?.label ? (
+        <div className={LABEL_CLASS}>{snapshot.activity.label}</div>
+      ) : null}
     </div>
   );
 }

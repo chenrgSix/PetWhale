@@ -5,6 +5,7 @@
 
 export const OVERLAY_CLASS = 'pw-overlay';
 export const PET_CLASS = 'pw-pet';
+export const LABEL_CLASS = 'pw-label';
 export const SETTINGS_CLASS = 'pw-settings';
 export const ROW_CLASS = 'pw-row';
 
@@ -31,6 +32,19 @@ export const OVERLAY_CSS = `
   pointer-events: auto;
   width: 100%;
   height: 100%;
+}
+.${LABEL_CLASS} {
+  position: absolute;
+  bottom: 6px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.92);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+  pointer-events: none;
+  user-select: none;
 }
 `;
 
