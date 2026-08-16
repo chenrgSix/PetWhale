@@ -2,10 +2,13 @@ import { useSyncExternalStore } from 'react';
 import type { PreferencesStore } from './preferences-store';
 import {
   ANCHOR_OPTIONS,
+  PET_OPTIONS,
   SCALE_MAX,
   SCALE_MIN,
   SCALE_STEP,
   SLEEP_OPTIONS,
+  petChoiceFromPreferences,
+  preferencePatchForPet,
 } from './options';
 import { ROW_CLASS, SETTINGS_CLASS } from '../styles';
 
@@ -35,12 +38,23 @@ export function PetWhaleSettings({ preferences }: PetWhaleSettingsProps) {
       </label>
 
       <label className={ROW_CLASS}>
-        <span>渲染器</span>
+        <span>宠物</span>
         <select
-          value={prefs.renderer}
-          onChange={(event) => preferences.update({ renderer: event.target.value })}
+          value={petChoiceFromPreferences(prefs)}
+          onChange={(event) =>
+            preferences.update(
+              preferencePatchForPet(
+                event.target.value as (typeof PET_OPTIONS)[number]['value'],
+                prefs.rendererConfig,
+              ),
+            )
+          }
         >
-          <option value="orb">Orb</option>
+          {PET_OPTIONS.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
         </select>
       </label>
 

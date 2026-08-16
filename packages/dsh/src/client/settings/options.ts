@@ -1,4 +1,34 @@
+import { SPRITE_PETS, isSpritePetId, type SpritePetId } from '@petwhale/renderer-sprite';
 import type { PetWhalePreferences } from './index';
+
+export type PetChoiceId = 'orb' | SpritePetId;
+
+export const PET_OPTIONS: ReadonlyArray<{ label: string; value: PetChoiceId }> = [
+  { label: '能量球', value: 'orb' },
+  ...SPRITE_PETS.map((pet) => ({ label: pet.label, value: pet.id })),
+];
+
+export function petChoiceFromPreferences(preferences: PetWhalePreferences): PetChoiceId {
+  if (isSpritePetId(preferences.renderer)) return preferences.renderer;
+  const configuredPet = preferences.rendererConfig?.petId;
+  if (preferences.renderer === 'sprite' && isSpritePetId(configuredPet)) return configuredPet;
+  return 'orb';
+}
+
+export function preferencePatchForPet(
+  pet: PetChoiceId,
+  rendererConfig: Record<string, unknown> = {},
+): Partial<PetWhalePreferences> {
+  const nextConfig = { ...rendererConfig };
+  if (pet === 'orb') {
+    delete nextConfig.petId;
+    return {
+      renderer: 'orb',
+      rendererConfig: Object.keys(nextConfig).length > 0 ? nextConfig : undefined,
+    };
+  }
+  return { renderer: 'sprite', rendererConfig: { ...nextConfig, petId: pet } };
+}
 
 /** Position anchors for the overlay (design doc §33). */
 export const ANCHOR_OPTIONS: ReadonlyArray<{ label: string; value: PetWhalePreferences['anchor'] }> = [

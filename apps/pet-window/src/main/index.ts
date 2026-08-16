@@ -21,6 +21,14 @@ import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { PetStateTracker, parseHostFrame } from '../shared/pet-state';
+import {
+  DEFAULT_PET_SETTINGS,
+  isPetChoiceId,
+  normalizePetSettings,
+  petMenuOptions,
+  type PetChoiceId,
+  type PetSettings,
+} from '../shared/pet-settings';
 import { listeningPorts } from './listening-ports';
 
 const execFileAsync = promisify(execFile);
@@ -35,17 +43,10 @@ const REDISCOVER_MS = 10_000;
 const TRAY_ICON_BASE64 =
   'iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAFuSURBVFhH7ZevUsNAEMYrkUgkkseo5A2gd8wEiayso46Z3HUikZWVSCSPEFmJrKzE7TJ7DaH5joRc7jIMA9/MzyS3++XPZm8zmfzrNyq75xNteIrIcVybVMryrTb0pCy9acv8JXLe0B3GRsndoaXSM+vC0PYmp0vMFSyd09xLHoCyVGDO3tIrWmPCIShLz8H1oS0vMFEctEGPVsm78xPE07s4gwuuJ8rSLiv4FP0akqvEwJQoQw/o2ZCy9IJBSTG0Rc9a8ng6m0wiZpYv0Nvp0HD8gNRIR0Vvp5mha1w8Egv0dhq7AGsML9HbyW02uHgM2i7gx2vgquBzXDwKhqfoXWusLviBdEP0bEjeDwYlZUVr9GyoakY7LzAB0uRam9CxYoeQNoKGE5ntMEEcVAYNJW7yTVaQ9CpfGHp8q6oeIndHKgeZH0v28GG7JD0GPfYuZTmfySekDO19o08O52nTq9qHqvoTWiJJ/gP+nN4BDe1NvJvLQM0AAAAASUVORK5CYII=';
 
-interface PetSettings {
-  locked: boolean;
-  size: 'small' | 'large';
-}
-
 const PET_SIZES: Record<PetSettings['size'], { width: number; height: number }> = {
   small: { width: 200, height: 253 },
   large: { width: 300, height: 380 },
 };
-
-const DEFAULT_SETTINGS: PetSettings = { locked: false, size: 'large' };
 
 // ---------- DSH discovery (the port changes on every Telos launch) ----------
 
@@ -167,13 +168,9 @@ function settingsFile(): string {
 
 function loadSettings(): PetSettings {
   try {
-    const parsed = JSON.parse(readFileSync(settingsFile(), 'utf8')) as Partial<PetSettings>;
-    return {
-      locked: parsed.locked === true,
-      size: parsed.size === 'small' ? 'small' : 'large',
-    };
+    return normalizePetSettings(JSON.parse(readFileSync(settingsFile(), 'utf8')));
   } catch {
-    return { ...DEFAULT_SETTINGS };
+    return { ...DEFAULT_PET_SETTINGS };
   }
 }
 
@@ -213,11 +210,11 @@ function savePosition(position: readonly number[]): void {
 
 let petWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
-let petSettings: PetSettings = DEFAULT_SETTINGS;
+let petSettings: PetSettings = { ...DEFAULT_PET_SETTINGS };
 
 function pushConfig(): void {
   if (petWindow !== null && !petWindow.isDestroyed() && !petWindow.webContents.isDestroyed()) {
-    petWindow.webContents.send('petwhale:config', { locked: petSettings.locked, size: petSettings.size });
+    petWindow.webContents.send('petwhale:config', { ...petSettings });
   }
 }
 
@@ -252,6 +249,13 @@ function toggleSize(): void {
   refreshTrayMenu();
 }
 
+function setPet(pet: PetChoiceId): void {
+  petSettings.pet = pet;
+  saveSettings();
+  pushConfig();
+  refreshTrayMenu();
+}
+
 function buildMenu(): Menu {
   const visible = petWindow !== null && !petWindow.isDestroyed() && petWindow.isVisible();
   return Menu.buildFromTemplate([
@@ -268,6 +272,15 @@ function buildMenu(): Menu {
     {
       label: petSettings.size === 'large' ? '切换为小尺寸' : '切换为大尺寸',
       click: () => toggleSize(),
+    },
+    {
+      label: '更换宠物',
+      submenu: petMenuOptions(petSettings.pet).map((option) => ({
+        label: option.label,
+        type: 'radio' as const,
+        checked: option.checked,
+        click: () => setPet(option.id),
+      })),
     },
     { type: 'separator' },
     {
@@ -326,6 +339,7 @@ ipcMain.handle('petwhale:status', () => ({
   ...connectionDiagnostics(),
   locked: petSettings.locked,
   size: petSettings.size,
+  pet: petSettings.pet,
 }));
 ipcMain.on('petwhale:menu', (event) => {
   const menu = buildMenu();
@@ -338,6 +352,10 @@ ipcMain.on('petwhale:menu', (event) => {
 app.whenReady().then(() => {
   if (process.platform === 'darwin') app.dock?.hide();
   petSettings = loadSettings();
+  const selfTestPet = process.env.PETWINDOW_SELF_TEST_PET;
+  if (process.env.PETWINDOW_SELF_TEST === '1' && isPetChoiceId(selfTestPet)) {
+    petSettings.pet = selfTestPet;
+  }
   openPetWindow();
 
   const trayIconPath = join(app.getPath('userData'), TRAY_ICON_FILE);
@@ -385,15 +403,20 @@ app.whenReady().then(() => {
         const result = (await window.webContents.executeJavaScript(`
           (() => {
             const canvas = document.querySelector('canvas');
+            const image = document.querySelector('#pet img');
             const center = canvas ? Array.from(canvas.getContext('2d').getImageData(Math.round(canvas.width/2), Math.round(canvas.height/2), 1, 1).data) : null;
+            const imageReady = image ? image.complete && image.naturalWidth > 0 : false;
             const src = document.querySelector('#status')?.textContent ?? '';
-            return { center, status: src };
+            return { center, imageReady, petId: image?.dataset.petId ?? 'orb', status: src };
           })()
-        `)) as { center: number[] | null; status: string };
-        const painted = result.center !== null && (result.center[3] ?? 0) > 10;
+        `)) as { center: number[] | null; imageReady: boolean; petId: string; status: string };
+        const painted =
+          (result.center !== null && (result.center[3] ?? 0) > 10) || result.imageReady;
         const outcome = {
           passed: painted,
           canvasCenter: result.center,
+          imageReady: result.imageReady,
+          petId: result.petId,
           status: result.status,
           connection: connectionDiagnostics(),
         };

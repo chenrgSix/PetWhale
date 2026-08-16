@@ -15,7 +15,8 @@
     "types": ["node"],
     "paths": {
       "@petwhale/core": ["../../packages/core/src/index.ts"],
-      "@petwhale/renderer-orb": ["../../packages/renderer-orb/src/index.ts"]
+      "@petwhale/renderer-orb": ["../../packages/renderer-orb/src/index.ts"],
+      "@petwhale/renderer-sprite": ["../../packages/renderer-sprite/src/index.ts"]
     }
   },
   "include": ["src/renderer", "src/shared"]

@@ -28,11 +28,15 @@ export { createPreferencesStore } from './client/settings/preferences-store';
 export type { PreferencesStore } from './client/settings/preferences-store';
 export {
   ANCHOR_OPTIONS,
+  PET_OPTIONS,
   SCALE_MAX,
   SCALE_MIN,
   SCALE_STEP,
   SLEEP_OPTIONS,
+  petChoiceFromPreferences,
+  preferencePatchForPet,
 } from './client/settings/options';
+export type { PetChoiceId } from './client/settings/options';
 export {
   OVERLAY_CLASS,
   OVERLAY_CSS,

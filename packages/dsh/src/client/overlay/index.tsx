@@ -5,7 +5,13 @@ import type {
   CompanionRendererOptions,
 } from '@petwhale/core';
 import { OrbRenderer } from '@petwhale/renderer-orb';
+import {
+  SpriteRenderer,
+  isSpritePetId,
+  spritePetById,
+} from '@petwhale/renderer-sprite';
 import type { PreferencesStore } from '../settings/preferences-store';
+import { petChoiceFromPreferences } from '../settings/options';
 import { clampOverlayPosition } from './position';
 import { LABEL_CLASS, OVERLAY_CLASS, PET_CLASS } from '../styles';
 
@@ -45,11 +51,14 @@ export function PetWhaleOverlay({ engine, preferences }: PetWhaleOverlayProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const overlayRef = useRef<HTMLDivElement | null>(null);
   const dragState = useRef<DragState | null>(null);
+  const pet = petChoiceFromPreferences(prefs);
 
   useEffect(() => {
     const container = containerRef.current;
     if (!container || !prefs.enabled) return;
-    const renderer: CompanionRenderer = new OrbRenderer();
+    const renderer: CompanionRenderer = isSpritePetId(pet)
+      ? new SpriteRenderer(spritePetById(pet))
+      : new OrbRenderer();
     const rendererOptions: CompanionRendererOptions = {
       scale: prefs.scale,
       reducedMotion: !prefs.motion,
@@ -58,7 +67,7 @@ export function PetWhaleOverlay({ engine, preferences }: PetWhaleOverlayProps) {
     return () => {
       renderer.dispose();
     };
-  }, [engine, prefs.enabled, prefs.scale, prefs.motion]);
+  }, [engine, pet, prefs.enabled, prefs.scale, prefs.motion]);
 
   const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>): void => {
     const overlay = overlayRef.current;

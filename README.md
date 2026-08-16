@@ -27,17 +27,18 @@ Agent Runtime (DeepSeek Harness / Telos)
 
 ## 当前状态
 
-**M0 — Foundation（0.0.1）** ✅ · **M2 — DSH Plugin** ✅ · **M3 — Agent State Mapping** ✅ · **M5 — Settings** ✅
+**M0 — Foundation（0.0.1）** ✅ · **M2 — DSH Plugin** ✅ · **M3 — Agent State Mapping** ✅ · **M5 — Settings** ✅ · **M6 — Sprite** ✅
 
 | 包 | 状态 |
 | --- | --- |
 | `@petwhale/core` | ✅ TypeScript-only，零依赖，无 DOM |
 | `@petwhale/renderer-orb` | ✅ Canvas Orb MVP（8 种状态动画） |
-| `@petwhale/dsh` | ✅ shell.overlay 插件（真实 DSH ModuleLoader bundle）+ ctx.sessions 状态映射 + settings.section 设置页（启用/渲染器/位置/缩放/动画/入睡，localStorage 持久化、实时生效）+ 拖动（M9） |
-| `@petwhale/pet-window` | ✅ 桌面桌宠窗口（Electron）：透明、无边框、置顶、可拖动；主进程自动发现 DSH 端口（动态）并订阅 host 事件流，软件在后台宠物也保持在前台 |
+| `@petwhale/renderer-sprite` | ✅ PNG/WebP/APNG 图片宠物渲染器；内置蓝色小鲸与橘色小猫 |
+| `@petwhale/dsh` | ✅ shell.overlay 插件（真实 DSH ModuleLoader bundle）+ ctx.sessions 状态映射 + settings.section 设置页（启用/宠物/位置/缩放/动画/入睡，localStorage 持久化、实时生效）+ 拖动（M9） |
+| `@petwhale/pet-window` | ✅ 桌面桌宠窗口（Electron）：透明、无边框、置顶、可拖动；托盘即时更换宠物；主进程自动发现 DSH 端口（动态）并订阅 host 事件流 |
 | `@petwhale/playground` | ✅ Vite 演示 |
 
-里程碑：M0 Foundation ✅ → M1 Orb ✅ → M2 DSH Plugin ✅ → M3 Agent State Mapping ✅ → M4 Telos（roster 集成）→ M5 Settings ✅ → M6 Sprite → M7 Live2D Experimental → M8 Live2D Host → M9 Interaction → M10 Voice（详见 `项目设计说明.md` §47）。
+里程碑：M0 Foundation ✅ → M1 Orb ✅ → M2 DSH Plugin ✅ → M3 Agent State Mapping ✅ → M4 Telos（roster 集成）→ M5 Settings ✅ → M6 Sprite ✅ → M7 Live2D Experimental → M8 Live2D Host → M9 Interaction → M10 Voice（详见 `项目设计说明.md` §47）。
 
 ## Monorepo
 
@@ -47,6 +48,7 @@ Agent Runtime (DeepSeek Harness / Telos)
 packages/
 ├── core/          @petwhale/core          语义层（无宿主、无渲染器、无 DOM）
 ├── renderer-orb/  @petwhale/renderer-orb  Canvas Orb 渲染器
+├── renderer-sprite/ @petwhale/renderer-sprite PNG/WebP/APNG 宠物渲染器
 └── dsh/           @petwhale/dsh           DeepSeek Harness / Telos 客户端插件
 apps/
 └── playground/    Vite 演示（MockSource 驱动）
@@ -80,6 +82,7 @@ Playground 里可以手动切换 8 种状态 / 6 种情绪 / 触发动作，也�
 - **状态来源**：主进程自动发现 DSH Web 端口（macOS 使用 `lsof`、Windows 使用 `netstat`，再做 `__DSH_BOOT__` 签名探测），用 Node WebSocket 订阅 `ws://127.0.0.1:<port>/api/events.host`（DSH 拒绝浏览器 `file://` Origin，所以连接放主进程、通过 IPC 转发到渲染器）。
 - **状态映射**：`PetStateTracker`（共享模块）——`host/session-status` running → thinking / working、`host/agent-error` → error、运行结束 → success transient；agent 干活时 Orb 会动起来。
 - **交互**：整窗可拖动，位置持久化（`userData/pet-position.json`）；右键 → 退出菜单。
+- **更换宠物**：托盘菜单 →「更换宠物」可在能量球、蓝色小鲸、橘色小猫之间即时切换并持久化。
 - **自检**：`PETWINDOW_SELF_TEST=1 pnpm pet` 会打开窗口、采样 Orb 像素与连接状态、把结果写到 `userData/petwhale-self-test.json` 后自动退出。
 
 ## @petwhale/dsh（M2 + M3 + M5 + M9）

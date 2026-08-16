@@ -10,8 +10,9 @@ body {
   -webkit-user-select: none;
 }
 
-/* The whole pet surface is a drag region; the orb floats over the desktop. */
+/* The whole pet surface is a drag region; the active companion floats over the desktop. */
 #pet {
+  position: relative;
   width: 100vw;
   height: 100vh;
   -webkit-app-region: drag;

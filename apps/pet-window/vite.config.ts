@@ -18,6 +18,9 @@ export default defineConfig({
       '@petwhale/renderer-orb': fileURLToPath(
         new URL('../../packages/renderer-orb/src/index.ts', import.meta.url),
       ),
+      '@petwhale/renderer-sprite': fileURLToPath(
+        new URL('../../packages/renderer-sprite/src/index.ts', import.meta.url),
+      ),
     },
   },
 });

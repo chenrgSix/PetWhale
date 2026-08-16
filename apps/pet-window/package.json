@@ -14,7 +14,8 @@
   },
   "dependencies": {
     "@petwhale/core": "workspace:*",
-    "@petwhale/renderer-orb": "workspace:*"
+    "@petwhale/renderer-orb": "workspace:*",
+    "@petwhale/renderer-sprite": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

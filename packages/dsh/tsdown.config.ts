@@ -43,6 +43,9 @@ export default defineConfig([
     dts: true,
     sourcemap: true,
     clean: true,
+    inputOptions: {
+      moduleTypes: { '.png': 'dataurl' },
+    },
     deps: {
       neverBundle: [...CLIENT_EXTERNALS],
     },
@@ -60,9 +63,12 @@ export default defineConfig([
     dts: false,
     sourcemap: true,
     clean: false,
+    inputOptions: {
+      moduleTypes: { '.png': 'dataurl' },
+    },
     deps: {
       // Platform modules stay external (answered by the injected require);
-      // everything else — @petwhale/core, renderer-orb, and the plugin body —
+      // everything else — @petwhale/core, both renderers, and the plugin body —
       // is inlined into the plugin bundle.
       neverBundle: [...CLIENT_EXTERNALS],
       alwaysBundle: (id: string) =>
