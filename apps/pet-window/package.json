@@ -7,7 +7,9 @@
   "scripts": {
     "build": "tsc -p tsconfig.json && tsc --noEmit -p tsconfig.renderer.json && vite build",
     "start": "electron .",
-    "package": "pnpm build && electron-packager . PetWhale --platform=win32 --arch=x64 --out=release --overwrite --asar --prune=false \"--ignore=^/src$\"",
+    "package": "pnpm package:win",
+    "package:win": "pnpm build && electron-packager . PetWhale --platform=win32 --arch=x64 --out=release --overwrite --asar --prune=false \"--ignore=^/src$\"",
+    "package:mac": "pnpm build && electron-packager . PetWhale --platform=darwin --arch=universal --out=release --overwrite --asar --prune=false --app-bundle-id=com.petwhale.desktop \"--ignore=^/src$\" && codesign --force --deep --sign - --timestamp=none release/PetWhale-darwin-universal/PetWhale.app",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.renderer.json"
   },
   "dependencies": {

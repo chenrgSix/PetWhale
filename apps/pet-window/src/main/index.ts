@@ -21,6 +21,7 @@ import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { PetStateTracker, parseHostFrame } from '../shared/pet-state';
+import { listeningPorts } from './listening-ports';
 
 const execFileAsync = promisify(execFile);
 
@@ -48,26 +49,6 @@ const DEFAULT_SETTINGS: PetSettings = { locked: false, size: 'large' };
 
 // ---------- DSH discovery (the port changes on every Telos launch) ----------
 
-async function listeningPorts(): Promise<number[]> {
-  try {
-    const { stdout } = await execFileAsync('netstat', ['-ano', '-p', 'TCP'], {
-      timeout: 8000,
-    });
-    const ports = new Set<number>();
-    for (const line of stdout.split(/\r?\n/)) {
-      const match = line.match(/^\s*TCP\s+(\S+):(\d+)\s+\S+:\S+\s+LISTENING/i);
-      if (!match) continue;
-      const address = match[1] ?? '';
-      if (address === '127.0.0.1' || address === '0.0.0.0' || address === '[::]' || address === '::') {
-        ports.add(Number(match[2]));
-      }
-    }
-    return [...ports];
-  } catch {
-    return [];
-  }
-}
-
 async function probeDsh(port: number, timeoutMs = 1500): Promise<string | null> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -85,7 +66,7 @@ async function probeDsh(port: number, timeoutMs = 1500): Promise<string | null> 
 
 /** Find the DSH Web base URL by scanning listening ports for the boot signature. */
 async function discoverDshUrl(): Promise<string | null> {
-  const ports = await listeningPorts();
+  const ports = await listeningPorts(process.platform, execFileAsync);
   const results = await Promise.all(ports.map((port) => probeDsh(port)));
   const hit = ports.find((_, index) => results[index]);
   return hit !== undefined ? `http://127.0.0.1:${hit}` : null;
@@ -355,6 +336,7 @@ ipcMain.on('petwhale:menu', (event) => {
 // ---------- app lifecycle ----------
 
 app.whenReady().then(() => {
+  if (process.platform === 'darwin') app.dock?.hide();
   petSettings = loadSettings();
   openPetWindow();
 
@@ -366,6 +348,7 @@ app.whenReady().then(() => {
     // Tray icon write is best-effort; the tray falls back to an empty icon.
   }
   const icon = nativeImage.createFromPath(trayIconPath);
+  if (process.platform === 'darwin') icon.setTemplateImage(true);
   tray = new Tray(icon);
   tray.setToolTip('PetWhale 宠物');
   tray.on('click', () => toggleVisible());

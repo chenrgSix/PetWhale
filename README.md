@@ -64,8 +64,11 @@ pnpm install        # 依赖已装好
 pnpm test           # 单测 + bundle 兼容门（兼容门需要先 pnpm build）
 pnpm typecheck && pnpm build
 pnpm playground     # http://localhost:5173 预览 Orb
-pnpm pet            # 桌面桌宠窗口（透明、置顶、可拖动，订阅 DSH 状态）
+pnpm pet            # 桌面桌宠窗口（macOS / Windows，透明、置顶、可拖动）
+pnpm pet:package:mac # 构建 macOS Universal .app（Intel + Apple Silicon）
 ```
+
+macOS 本地打包产物位于 `apps/pet-window/release/PetWhale-darwin-universal/`，使用 ad-hoc 签名，适合本地运行与开发验证；对外分发仍需配置 Apple Developer ID 签名与 notarization。
 
 Playground 里可以手动切换 8 种状态 / 6 种情绪 / 触发动作，也可以运行一段脚本化的「agent 故事」（思考 → 工具 → 回答 → 成功 → 空闲），直接观察 Scheduler 的抖动过滤与 transient 保持。
 
@@ -73,7 +76,8 @@ Playground 里可以手动切换 8 种状态 / 6 种情绪 / 触发动作，也�
 
 独立 Electron 小窗（**透明、无边框、置顶、可拖动**），软件最小化/切到后台时宠物仍显示在前台——经典桌宠形态：
 
-- **状态来源**：主进程自动发现 DSH Web 端口（`netstat` 扫描 + `__DSH_BOOT__` 签名探测，端口每次启动都不同），用 Node WebSocket 订阅 `ws://127.0.0.1:<port>/api/events.host`（DSH 拒绝浏览器 `file://` Origin，所以连接放主进程、通过 IPC 转发到渲染器）。
+- **平台支持**：macOS（Intel + Apple Silicon）与 Windows；macOS 以菜单栏应用运行，不显示多余的 Dock 图标。
+- **状态来源**：主进程自动发现 DSH Web 端口（macOS 使用 `lsof`、Windows 使用 `netstat`，再做 `__DSH_BOOT__` 签名探测），用 Node WebSocket 订阅 `ws://127.0.0.1:<port>/api/events.host`（DSH 拒绝浏览器 `file://` Origin，所以连接放主进程、通过 IPC 转发到渲染器）。
 - **状态映射**：`PetStateTracker`（共享模块）——`host/session-status` running → thinking / working、`host/agent-error` → error、运行结束 → success transient；agent 干活时 Orb 会动起来。
 - **交互**：整窗可拖动，位置持久化（`userData/pet-position.json`）；右键 → 退出菜单。
 - **自检**：`PETWINDOW_SELF_TEST=1 pnpm pet` 会打开窗口、采样 Orb 像素与连接状态、把结果写到 `userData/petwhale-self-test.json` 后自动退出。

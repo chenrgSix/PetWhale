@@ -18,6 +18,8 @@
     "playground:build": "pnpm --filter @petwhale/playground build",
     "pet": "pnpm --filter @petwhale/pet-window start",
     "pet:build": "pnpm --filter @petwhale/pet-window build",
+    "pet:package:mac": "pnpm --filter @petwhale/pet-window package:mac",
+    "pet:package:win": "pnpm --filter @petwhale/pet-window package:win",
     "changeset": "changeset",
     "release": "changeset publish"
   },
