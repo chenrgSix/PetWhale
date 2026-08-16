@@ -85,6 +85,14 @@ export class CompanionEngine {
     return this.scheduler.getEffectiveState();
   }
 
+  /**
+   * Merge behavior-policy overrides at runtime (settings changes).
+   * @param partial - policy fields to update.
+   */
+  setBehaviorPolicy(partial: Partial<BehaviorPolicy>): void {
+    this.scheduler.setPolicy(partial);
+  }
+
   /** Begin listening to the source and driving the renderer. */
   start(): void {
     if (this.started || this.disposed) return;

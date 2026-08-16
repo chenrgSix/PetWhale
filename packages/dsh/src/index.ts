@@ -24,11 +24,24 @@ export {
   savePreferences,
 } from './client/settings';
 export type { PetWhalePreferences } from './client/settings';
+export { createPreferencesStore } from './client/settings/preferences-store';
+export type { PreferencesStore } from './client/settings/preferences-store';
+export {
+  ANCHOR_OPTIONS,
+  SCALE_MAX,
+  SCALE_MIN,
+  SCALE_STEP,
+  SLEEP_OPTIONS,
+} from './client/settings/options';
 export {
   OVERLAY_CLASS,
   OVERLAY_CSS,
   PET_CLASS,
+  SETTINGS_CLASS,
+  ROW_CLASS,
+  SETTINGS_CSS,
   injectOverlayStyle,
+  injectSettingsStyle,
 } from './client/styles';
 
 /** Host loader entry: no host-side behavior (browser-only plugin). */

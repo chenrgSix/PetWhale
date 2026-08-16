@@ -64,6 +64,16 @@ export class BehaviorScheduler {
     return { ...this.policy };
   }
 
+  /**
+   * Merge partial policy overrides at runtime (e.g. a settings change). A
+   * live sleep timer is re-armed from the new value when the companion is
+   * currently idle.
+   */
+  setPolicy(partial: Partial<BehaviorPolicy>): void {
+    Object.assign(this.policy, resolveBehaviorPolicy(partial));
+    if (this.effective === 'idle') this.armSleepTimer();
+  }
+
   /** Feed a raw state request from the source. */
   request(state: CompanionState): void {
     if (this.disposed) return;
@@ -176,6 +186,7 @@ export class BehaviorScheduler {
 
   private armSleepTimer(): void {
     if (this.disposed || this.effective !== 'idle') return;
+    if (this.policy.sleepAfterMs <= 0) return; // 0 = never sleep
     this.clearSleepTimer();
     this.sleepTimer = setTimeout(() => this.onSleepExpired(), this.policy.sleepAfterMs);
   }

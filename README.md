@@ -27,16 +27,16 @@ Agent Runtime (DeepSeek Harness / Telos)
 
 ## 当前状态
 
-**M0 — Foundation（0.0.1）** ✅ · **M2 — DSH Plugin** ✅ · **M3 — Agent State Mapping** ✅
+**M0 — Foundation（0.0.1）** ✅ · **M2 — DSH Plugin** ✅ · **M3 — Agent State Mapping** ✅ · **M5 — Settings** ✅
 
 | 包 | 状态 |
 | --- | --- |
 | `@petwhale/core` | ✅ TypeScript-only，零依赖，无 DOM |
 | `@petwhale/renderer-orb` | ✅ Canvas Orb MVP（8 种状态动画） |
-| `@petwhale/dsh` | ✅ shell.overlay 插件（真实 DSH ModuleLoader bundle）+ ctx.sessions 状态映射（thinking / working / waiting / success / error） |
+| `@petwhale/dsh` | ✅ shell.overlay 插件（真实 DSH ModuleLoader bundle）+ ctx.sessions 状态映射 + settings.section 设置页（启用/渲染器/位置/缩放/动画/入睡，localStorage 持久化、实时生效） |
 | `@petwhale/playground` | ✅ Vite 演示 |
 
-里程碑：M0 Foundation ✅ → M1 Orb ✅ → M2 DSH Plugin ✅ → M3 Agent State Mapping ✅ → M4 Telos（roster 集成）→ M5 Settings → M6 Sprite → M7 Live2D Experimental → M8 Live2D Host → M9 Interaction → M10 Voice（详见 `项目设计说明.md` §47）。
+里程碑：M0 Foundation ✅ → M1 Orb ✅ → M2 DSH Plugin ✅ → M3 Agent State Mapping ✅ → M4 Telos（roster 集成）→ M5 Settings ✅ → M6 Sprite → M7 Live2D Experimental → M8 Live2D Host → M9 Interaction → M10 Voice（详见 `项目设计说明.md` §47）。
 
 ## Monorepo
 
@@ -73,8 +73,9 @@ Playground 里可以手动切换 8 种状态 / 6 种情绪 / 触发动作，也�
 - **类型**：按 DeepSeek Harness **0.1.0-rc.5** 的真实 API 以环境模块声明（`src/client/types/dsh.d.ts`）镜像；源码按真实插件风格从 `@deepseek-ai/dsh-client-runtime/client` 导入类型。仓库自包含可编译；接入真实包时 TypeScript 自动使用真实类型。
 - **状态映射**：`DshCompanionSource` 订阅 `ctx.sessions.list` → 当前会话 `binding.session`（`ObservableSnapshot<ConversationSnapshot>`）→ `composeSnapshot`（推理→thinking、工具→working、等待→waiting、错误→error、完成→success transient）。
 - **bundle**：`pnpm --filter @petwhale/dsh build` 产出 DSH ModuleLoader 格式的 `lib/client.js`（`window.__ModuleLoader__.load({ id: "@petwhale/dsh", factory })`，react 等平台模块 external，core/orb 内联），可直接作为 `/plugins/@petwhale/dsh/client.js` 供给运行时。
+- **设置（M5）**：`settings.section` 页面（启用 / 渲染器 / 位置 / 缩放 / 动画 / 空闲入睡），localStorage 持久化；共享 `PreferencesStore` 让设置实时作用于运行中的 Orb（缩放/动画重新挂载渲染器、入睡时长热更新调度器策略、位置移动浮层、禁用则隐藏宠物）。
 - **兼容门**：`tests/compatibility/dsh-bundle.test.ts` 在模拟浏览器沙箱中加载真实 bundle，端到端验证注册与状态管线（先 `pnpm build` 再 `pnpm test` 生效）。
-- **安装到宿主**：把构建产物（`lib/` + `package.json`，声明 `dsh.client`）放入宿主 profiles 的 node_modules 并加入 roster —— DeepSeek Harness / Telos 的接线是 M4（Telos 薄 PR）与 `tests/compatibility` 的真实集成测试。
+- **安装到宿主（M4 准备）**：`node scripts/install-dsh-local.mjs` 把构建产物复制进 web profile 的 node_modules、向 `cordis.patch.yml` 追加插件行、声明依赖 —— 默认 dry-run，`--apply` 才写入（自动备份）。
 
 ## Compatibility
 

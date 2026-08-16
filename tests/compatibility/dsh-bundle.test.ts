@@ -166,16 +166,16 @@ describe('compatibility: built @petwhale/dsh client bundle', () => {
       const { exports } = loadBundle();
       const mock = makeMockSessions();
 
-      let registered: { entry: Record<string, unknown>; component: unknown } | null = null;
-      let injectedEffect: (() => void) | null = null;
+      const registered: Array<{ entry: Record<string, unknown>; component: unknown }> = [];
+      const injectedEffects: Array<() => void> = [];
       const ctx = {
         slots: {
           inject: (_key: string, callback: () => unknown) => {
-            injectedEffect = callback() as () => void;
+            injectedEffects.push(callback() as () => void);
             return () => {};
           },
           register: (entry: Record<string, unknown>, component: unknown) => {
-            registered = { entry, component };
+            registered.push({ entry, component });
             return () => {};
           },
         },
@@ -184,17 +184,31 @@ describe('compatibility: built @petwhale/dsh client bundle', () => {
 
       (exports.apply as (ctx: unknown) => void)(ctx);
 
-      expect(registered).not.toBeNull();
-      expect(registered!.entry.name).toBe('shell.overlay');
-      expect(registered!.entry.id).toBe('petwhale');
-      expect(registered!.entry.order).toBe(50);
-      expect(typeof registered!.component).toBe('function');
+      // shell.overlay entry.
+      const overlay = registered.find((r) => r.entry.name === 'shell.overlay');
+      expect(overlay).toBeDefined();
+      expect(overlay!.entry.id).toBe('petwhale');
+      expect(overlay!.entry.order).toBe(50);
+      expect(typeof overlay!.component).toBe('function');
 
-      // The inject face hands the engine to the component.
-      const face = (registered!.entry as { inject?: () => unknown }).inject?.() as {
+      // settings.section entry (M5).
+      const settings = registered.find((r) => r.entry.name === 'settings.section');
+      expect(settings).toBeDefined();
+      expect(settings!.entry.id).toBe('petwhale');
+      expect(settings!.entry.label).toBe('PetWhale');
+      expect(typeof settings!.component).toBe('function');
+
+      // The overlay inject face hands the engine + preferences to the component.
+      const face = (overlay!.entry as { inject?: () => unknown }).inject?.() as {
         engine?: { effectiveState: string };
+        preferences?: { get(): unknown; update(patch: Record<string, unknown>): void };
       };
       expect(face?.engine).toBeDefined();
+      expect(face?.preferences).toBeDefined();
+
+      // Settings updates flow into the live engine policy (M5).
+      face!.preferences!.update({ sleepAfterMs: 0 });
+      expect(face!.preferences!.get()).toMatchObject({ sleepAfterMs: 0 });
 
       // Current session appears → idle.
       mock.setCurrent('s1');
@@ -222,7 +236,7 @@ describe('compatibility: built @petwhale/dsh client bundle', () => {
       expect(engine.effectiveState).toBe('success');
 
       // Plugin teardown disposes the engine (no further updates).
-      injectedEffect?.();
+      for (const effect of injectedEffects) effect();
       mock.pushConversation({
         ...baseConversation('s1'),
         running: true,

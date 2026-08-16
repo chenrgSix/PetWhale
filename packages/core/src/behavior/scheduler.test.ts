@@ -115,6 +115,27 @@ describe('BehaviorScheduler', () => {
     expect(scheduler.getEffectiveState()).toBe('thinking');
   });
 
+  it('never sleeps when sleepAfterMs is 0', () => {
+    const scheduler = new BehaviorScheduler({ sleepAfterMs: 0 });
+    vi.advanceTimersByTime(60_000);
+    expect(scheduler.getEffectiveState()).toBe('idle');
+  });
+
+  it('setPolicy re-arms the sleep timer while idle', () => {
+    const scheduler = new BehaviorScheduler({ sleepAfterMs: 10_000 });
+    scheduler.setPolicy({ sleepAfterMs: 5000 });
+    vi.advanceTimersByTime(5000);
+    expect(scheduler.getEffectiveState()).toBe('sleeping');
+  });
+
+  it('setPolicy does not disturb a busy state', () => {
+    const scheduler = new BehaviorScheduler();
+    scheduler.request('working');
+    scheduler.setPolicy({ sleepAfterMs: 1000 });
+    vi.advanceTimersByTime(2000);
+    expect(scheduler.getEffectiveState()).toBe('working');
+  });
+
   it('clears every timer on dispose', () => {
     const scheduler = new BehaviorScheduler();
     scheduler.request('success');

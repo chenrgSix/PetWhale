@@ -1,41 +1,48 @@
 /**
  * @petwhale/dsh — browser half (the DSH `dsh.client` bundle entry, design doc
- * §16–§17). Registers a PetWhale entry into the frame-wide `shell.overlay`
- * list slot through `ctx.slots.inject(...)` — the official third-party rule:
- * wait for the declaration, survive layout rebuilds, leave with the plugin
- * fiber. The bundle is built into the DSH ModuleLoader format
+ * §16–§17). Registers the PetWhale overlay into the frame-wide
+ * `shell.overlay` list slot and the PetWhale settings page into
+ * `settings.section`, both through `ctx.slots.inject(...)` — the official
+ * third-party rule: wait for the declaration, survive layout rebuilds, leave
+ * with the plugin fiber. The bundle is built into the DSH ModuleLoader format
  * (window.__ModuleLoader__.load) and served as /plugins/@petwhale/dsh/client.js.
  */
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client';
 import { CompanionEngine } from '@petwhale/core';
 import { DshCompanionSource } from './source/dsh-source';
 import { OVERLAY_ENTRY_ID, PetWhaleOverlay } from './overlay';
-import { loadPreferences } from './settings';
-import { injectOverlayStyle } from './styles';
+import { PetWhaleSettings } from './settings/PetWhaleSettings';
+import { createPreferencesStore } from './settings/preferences-store';
+import {
+  injectOverlayStyle,
+  injectSettingsStyle,
+} from './styles';
 
 /** Required services (cordis fiber inject). */
 export const inject = ['slots', 'sessions'];
 
+const OVERLAY_SECTION_ID = 'petwhale';
+
 /**
- * Plugin body: on every shell.overlay declaration lifetime, create the
- * companion pipeline (source → engine), wire host facts (visibility,
- * reduced-motion, preferences), register the overlay entry, and return a
- * disposer that tears the whole pipeline down with the fiber.
+ * Plugin body. One shared PreferencesStore (design doc §34–§35, first version
+ * localStorage) is created here and handed to both entries through their
+ * inject faces; the overlay pipeline subscribes to it so settings apply live.
  */
 export function apply(ctx: ClientContext): void {
+  const preferences = createPreferencesStore();
+
   ctx.slots.inject('shell.overlay', () => {
-    const preferences = loadPreferences();
     const source = new DshCompanionSource(ctx.sessions, {
       host: 'deepseek-harness',
     });
     const engine = new CompanionEngine(source, {
-      behaviorPolicy: { sleepAfterMs: preferences.sleepAfterMs },
+      behaviorPolicy: { sleepAfterMs: preferences.get().sleepAfterMs },
     });
-    const reducedMotion =
-      !preferences.motion ||
-      (typeof matchMedia === 'function' &&
-        matchMedia('(prefers-reduced-motion: reduce)').matches);
-    const rendererOptions = { scale: preferences.scale, reducedMotion };
+
+    // Settings changes apply to the running pipeline without a reload.
+    const unsubscribePreferences = preferences.subscribe(() => {
+      engine.setBehaviorPolicy({ sleepAfterMs: preferences.get().sleepAfterMs });
+    });
 
     source.start();
     engine.start();
@@ -54,7 +61,7 @@ export function apply(ctx: ClientContext): void {
           id: OVERLAY_ENTRY_ID,
           order: 50,
           label: 'PetWhale',
-          inject: () => ({ engine, rendererOptions }),
+          inject: () => ({ engine, preferences }),
         },
         PetWhaleOverlay,
       ),
@@ -62,10 +69,32 @@ export function apply(ctx: ClientContext): void {
 
     return () => {
       for (const dispose of disposers.reverse()) dispose();
+      unsubscribePreferences();
       styleTag?.remove();
       document.removeEventListener('visibilitychange', syncVisibility);
       source.dispose();
       engine.dispose();
+    };
+  });
+
+  ctx.slots.inject('settings.section', () => {
+    const disposers: Array<() => void> = [];
+    disposers.push(
+      ctx.slots.register(
+        {
+          name: 'settings.section',
+          id: OVERLAY_SECTION_ID,
+          order: 90,
+          label: 'PetWhale',
+          inject: () => ({ preferences }),
+        },
+        PetWhaleSettings,
+      ),
+    );
+    const styleTag = injectSettingsStyle();
+    return () => {
+      for (const dispose of disposers.reverse()) dispose();
+      styleTag?.remove();
     };
   });
 }
@@ -90,5 +119,16 @@ export {
   savePreferences,
 } from './settings';
 export type { PetWhalePreferences } from './settings';
-export { OVERLAY_CLASS, OVERLAY_CSS, PET_CLASS, injectOverlayStyle } from './styles';
+export { createPreferencesStore } from './settings/preferences-store';
+export type { PreferencesStore } from './settings/preferences-store';
+export {
+  OVERLAY_CLASS,
+  OVERLAY_CSS,
+  PET_CLASS,
+  SETTINGS_CLASS,
+  ROW_CLASS,
+  SETTINGS_CSS,
+  injectOverlayStyle,
+  injectSettingsStyle,
+} from './styles';
 export { OVERLAY_ENTRY_ID } from './overlay';

@@ -182,4 +182,14 @@ describe('CompanionEngine', () => {
     engine.start();
     expect(renderer.updates.at(-1)?.state).toBe('working');
   });
+
+  it('setBehaviorPolicy forwards runtime policy overrides to the scheduler', () => {
+    const source = new MockSource();
+    const engine = new CompanionEngine(source);
+    engine.start();
+    expect(engine.effectiveState).toBe('idle');
+    engine.setBehaviorPolicy({ sleepAfterMs: 0 });
+    vi.advanceTimersByTime(60_000);
+    expect(engine.effectiveState).toBe('idle');
+  });
 });
