@@ -30,6 +30,7 @@ const OVERLAY_SECTION_ID = 'petwhale';
  */
 export function apply(ctx: ClientContext): void {
   const preferences = createPreferencesStore();
+  console.info('[petwhale] apply: registering shell.overlay + settings.section');
 
   ctx.slots.inject('shell.overlay', () => {
     const source = new DshCompanionSource(ctx.sessions, {
@@ -66,6 +67,7 @@ export function apply(ctx: ClientContext): void {
         PetWhaleOverlay,
       ),
     );
+    console.info('[petwhale] shell.overlay entry registered, engine started');
 
     return () => {
       for (const dispose of disposers.reverse()) dispose();
