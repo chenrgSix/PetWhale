@@ -25,4 +25,7 @@ contextBridge.exposeInMainWorld('petwhale', {
   showMenu: (): void => {
     ipcRenderer.send('petwhale:menu');
   },
+  reportRendererError: (message: string): void => {
+    ipcRenderer.send('petwhale:renderer-error', message);
+  },
 });

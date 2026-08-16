@@ -1,4 +1,8 @@
 import { CompanionEngine } from '@petwhale/core';
+import {
+  Live2DRenderer,
+  isLive2DPetManifest,
+} from '@petwhale/renderer-live2d';
 import { OrbRenderer } from '@petwhale/renderer-orb';
 import {
   SpriteRenderer,
@@ -6,7 +10,6 @@ import {
   isCustomPetManifest,
   isSpritePetId,
   spritePetById,
-  type CustomPetManifest,
 } from '@petwhale/renderer-sprite';
 import { isPetChoiceId, type PetChoiceId } from '../shared/pet-settings';
 import { IpcPetSource } from './pet-source';
@@ -19,6 +22,7 @@ declare global {
       status: () => Promise<unknown>;
       quit: () => Promise<void>;
       showMenu: () => void;
+      reportRendererError: (message: string) => void;
     };
   }
 }
@@ -37,19 +41,35 @@ let rendererGeneration = 0;
 
 async function setPet(
   pet: PetChoiceId,
-  customPet?: CustomPetManifest,
+  customPet?: unknown,
 ): Promise<void> {
-  if (isCustomPetId(pet) && (!customPet || customPet.id !== pet)) pet = 'orb';
+  const imagePet = isCustomPetManifest(customPet) && customPet.id === pet ? customPet : undefined;
+  const live2DPet = isLive2DPetManifest(customPet) && customPet.id === pet ? customPet : undefined;
+  if (isCustomPetId(pet) && imagePet === undefined && live2DPet === undefined) pet = 'orb';
   if (pet === activePet) return;
   activePet = pet;
   const generation = ++rendererGeneration;
-  const renderer = isCustomPetId(pet) && customPet
-    ? new SpriteRenderer(customPet)
+  const renderer = live2DPet !== undefined
+    ? new Live2DRenderer(live2DPet)
+    : isCustomPetId(pet) && imagePet !== undefined
+    ? new SpriteRenderer(imagePet)
     : isSpritePetId(pet)
       ? new SpriteRenderer(spritePetById(pet))
       : new OrbRenderer();
-  await engine.setRenderer(renderer, container, { scale: pet === 'orb' ? 1.5 : 1 });
-  if (generation !== rendererGeneration) renderer.dispose();
+  try {
+    await engine.setRenderer(renderer, container, { scale: pet === 'orb' ? 1.5 : 1 });
+    if (generation !== rendererGeneration) renderer.dispose();
+  } catch (error) {
+    console.error('[pet-window] failed to mount renderer', error);
+    window.petwhale?.reportRendererError(
+      error instanceof Error ? error.message : String(error),
+    );
+    renderer.dispose();
+    if (generation === rendererGeneration && pet !== 'orb') {
+      activePet = null;
+      await setPet('orb');
+    }
+  }
 }
 
 void setPet('orb');
@@ -66,7 +86,7 @@ window.petwhale?.onConfig((config) => {
   };
   document.body.classList.toggle('locked', locked === true);
   if (isPetChoiceId(pet)) {
-    void setPet(pet, isCustomPetManifest(customPet) ? customPet : undefined);
+    void setPet(pet, customPet);
   }
 });
 

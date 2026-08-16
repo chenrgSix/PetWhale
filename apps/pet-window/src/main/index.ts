@@ -14,9 +14,19 @@
  * - provide a system-tray icon + context menu (show/hide, lock position,
  *   choose/import/remove pets, toggle size, quit) and persist settings.
  */
-import { app, BrowserWindow, dialog, ipcMain, Menu, Tray, nativeImage } from 'electron';
+import {
+  app,
+  BrowserWindow,
+  dialog,
+  ipcMain,
+  Menu,
+  Tray,
+  nativeImage,
+  protocol,
+  shell,
+} from 'electron';
 import { execFile } from 'node:child_process';
-import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
@@ -37,6 +47,17 @@ import {
   type CustomPetRendererConfig,
 } from './custom-pets';
 
+protocol.registerSchemesAsPrivileged([{
+  scheme: 'petwhale-live2d',
+  privileges: {
+    standard: true,
+    secure: true,
+    supportFetchAPI: true,
+    corsEnabled: true,
+    stream: true,
+  },
+}]);
+
 const execFileAsync = promisify(execFile);
 
 const DSH_SIGNATURE = '__DSH_BOOT__';
@@ -44,6 +65,11 @@ const POSITION_FILE = 'pet-position.json';
 const SETTINGS_FILE = 'petwhale-settings.json';
 const TRAY_ICON_FILE = 'tray-icon.png';
 const CUSTOM_PETS_DIR = 'custom-pets';
+const LIVE2D_LICENSE_FILE = 'live2d-license.json';
+const LIVE2D_PROPRIETARY_LICENSE_URL =
+  'https://www.live2d.com/eula/live2d-proprietary-software-license-agreement_cn.html';
+const LIVE2D_OPEN_LICENSE_URL =
+  'https://www.live2d.com/eula/live2d-open-software-license-agreement_cn.html';
 const REDISCOVER_MS = 10_000;
 
 /** A 32×32 blue orb, generated at build time and written to userData for the tray. */
@@ -222,6 +248,75 @@ let customPetStore: CustomPetStore | null = null;
 let customPets: CustomPetRecord[] = [];
 let selfTestCustomPet: CustomPetRendererConfig | null = null;
 
+function live2DLicenseFile(): string {
+  return join(app.getPath('userData'), LIVE2D_LICENSE_FILE);
+}
+
+async function confirmLive2DLicense(): Promise<boolean> {
+  if (existsSync(live2DLicenseFile())) return true;
+  while (true) {
+    const result = await dialog.showMessageBox({
+      type: 'info',
+      title: '启用 Live2D Cubism',
+      message: '导入 Live2D 模型需要使用 Live2D Cubism Core。',
+      detail:
+        '继续即表示你已阅读并同意 Live2D Proprietary Software License Agreement 和 ' +
+        'Live2D Open Software License Agreement，' +
+        '并确认拥有所导入模型及素材的使用权。PetWhale 将从 Live2D 官方固定版本地址加载 Cubism Core。',
+      buttons: ['取消', '查看许可', '同意并继续'],
+      defaultId: 0,
+      cancelId: 0,
+    });
+    if (result.response === 0) return false;
+    if (result.response === 1) {
+      await shell.openExternal(LIVE2D_PROPRIETARY_LICENSE_URL);
+      await shell.openExternal(LIVE2D_OPEN_LICENSE_URL);
+      continue;
+    }
+    mkdirSync(app.getPath('userData'), { recursive: true });
+    writeFileSync(live2DLicenseFile(), JSON.stringify({
+      acceptedAt: new Date().toISOString(),
+      cubismCore: '5.3-hosted',
+    }));
+    return true;
+  }
+}
+
+function live2DContentType(path: string): string {
+  const extension = path.toLocaleLowerCase('en-US').split('.').pop();
+  switch (extension) {
+    case 'json': return 'application/json; charset=utf-8';
+    case 'png': return 'image/png';
+    case 'webp': return 'image/webp';
+    case 'jpg':
+    case 'jpeg': return 'image/jpeg';
+    case 'wav': return 'audio/wav';
+    case 'mp3': return 'audio/mpeg';
+    case 'ogg': return 'audio/ogg';
+    default: return 'application/octet-stream';
+  }
+}
+
+function installLive2DProtocol(): void {
+  void protocol.handle('petwhale-live2d', (request) => {
+    try {
+      const url = new URL(request.url);
+      const requestPath = decodeURIComponent(url.pathname.replace(/^\/+/, ''));
+      const resource = customPetStore?.resolveLive2DResource(url.hostname, requestPath);
+      if (resource === null || resource === undefined) return new Response('Not found', { status: 404 });
+      return new Response(readFileSync(resource), {
+        headers: {
+          'Content-Type': live2DContentType(resource),
+          'Access-Control-Allow-Origin': '*',
+          'Cache-Control': 'private, max-age=3600',
+        },
+      });
+    } catch {
+      return new Response('Bad request', { status: 400 });
+    }
+  });
+}
+
 function pushConfig(): void {
   if (petWindow !== null && !petWindow.isDestroyed() && !petWindow.webContents.isDestroyed()) {
     const customPet = customPets.find((pet) => pet.id === petSettings.pet);
@@ -300,6 +395,27 @@ async function importCustomPet(): Promise<void> {
   }
 }
 
+async function importLive2DPet(): Promise<void> {
+  if (customPetStore === null || !(await confirmLive2DLicense())) return;
+  const result = await dialog.showOpenDialog({
+    title: '导入 Live2D 模型包',
+    properties: ['openFile'],
+    filters: [{ name: 'Live2D ZIP 模型包', extensions: ['zip'] }],
+  });
+  const sourcePath = result.filePaths[0];
+  if (result.canceled || sourcePath === undefined) return;
+  try {
+    const imported = customPetStore.importLive2D(sourcePath);
+    customPets = customPetStore.load();
+    setPet(imported.id);
+  } catch (error) {
+    dialog.showErrorBox(
+      '无法导入 Live2D 宠物',
+      error instanceof Error ? error.message : String(error),
+    );
+  }
+}
+
 async function removeCustomPet(pet: CustomPetRecord): Promise<void> {
   if (customPetStore === null) return;
   const result = await dialog.showMessageBox({
@@ -350,8 +466,12 @@ function buildMenu(): Menu {
         })),
         { type: 'separator' as const },
         {
-          label: '导入自定义宠物…',
+          label: '导入图片宠物…',
           click: () => void importCustomPet(),
+        },
+        {
+          label: '导入 Live2D 宠物…',
+          click: () => void importLive2DPet(),
         },
       ],
     },
@@ -428,6 +548,17 @@ ipcMain.on('petwhale:menu', (event) => {
   const window = BrowserWindow.fromWebContents(event.sender);
   if (window !== null) menu.popup({ window });
 });
+ipcMain.on('petwhale:renderer-error', (_event, message: unknown) => {
+  if (typeof message !== 'string' || message.length === 0 || message.length > 500) return;
+  const selected = customPets.find((pet) => pet.id === petSettings.pet);
+  if (selected?.type !== 'live2d') return;
+  if (process.env.PETWINDOW_SELF_TEST === '1') {
+    console.error('[self-test] Live2D renderer failed', message);
+  } else {
+    dialog.showErrorBox('Live2D 宠物加载失败', message);
+  }
+  setPet('orb');
+});
 
 // ---------- app lifecycle ----------
 
@@ -435,6 +566,7 @@ app.whenReady().then(() => {
   if (process.platform === 'darwin') app.dock?.hide();
   customPetStore = new CustomPetStore(join(app.getPath('userData'), CUSTOM_PETS_DIR));
   customPets = customPetStore.load();
+  installLive2DProtocol();
   petSettings = loadSettings();
   if (
     petSettings.pet.startsWith('custom:') &&
@@ -452,6 +584,7 @@ app.whenReady().then(() => {
     try {
       if (detectPetImage(readFileSync(selfTestCustomPath)) !== null) {
         selfTestCustomPet = {
+          type: 'image',
           id: 'custom:self-test',
           label: '自定义宠物自检',
           src: pathToFileURL(selfTestCustomPath).href,
@@ -460,6 +593,16 @@ app.whenReady().then(() => {
       }
     } catch {
       // The regular self-test will report a missing image.
+    }
+  }
+  const selfTestLive2DPath = process.env.PETWINDOW_SELF_TEST_LIVE2D_PATH;
+  if (process.env.PETWINDOW_SELF_TEST === '1' && selfTestLive2DPath) {
+    try {
+      const imported = customPetStore.importLive2D(selfTestLive2DPath);
+      customPets = customPetStore.load();
+      petSettings.pet = imported.id;
+    } catch (error) {
+      console.error('[self-test] failed to import Live2D package', error);
     }
   }
   openPetWindow();
@@ -484,6 +627,21 @@ app.whenReady().then(() => {
   }, REDISCOVER_MS);
 
   if (process.env.PETWINDOW_SELF_TEST === '1') {
+    const requestedState = process.env.PETWINDOW_SELF_TEST_STATE;
+    const selfTestStates = new Set([
+      'idle', 'thinking', 'answering', 'working', 'waiting', 'success', 'error', 'sleeping',
+    ]);
+    if (requestedState !== undefined && selfTestStates.has(requestedState)) {
+      setTimeout(() => {
+        if (petWindow !== null && !petWindow.isDestroyed()) {
+          petWindow.webContents.send('petwhale:state', {
+            ...tracker.getSnapshot(),
+            state: requestedState,
+            since: Date.now(),
+          });
+        }
+      }, 3000);
+    }
     // Self-test: after the active renderer has mounted, sample the canvas or
     // image and the live connection state, then write the verdict to a file
     // (GUI-subsystem processes have no usable stdout on Windows), then exit.
@@ -510,19 +668,50 @@ app.whenReady().then(() => {
           (() => {
             const canvas = document.querySelector('canvas');
             const image = document.querySelector('#pet img');
-            const center = canvas ? Array.from(canvas.getContext('2d').getImageData(Math.round(canvas.width/2), Math.round(canvas.height/2), 1, 1).data) : null;
+            const context2d = canvas?.getContext('2d') ?? null;
+            const center = canvas && context2d ? Array.from(context2d.getImageData(Math.round(canvas.width/2), Math.round(canvas.height/2), 1, 1).data) : null;
+            const live2DReady = canvas?.dataset.renderer === 'live2d' && canvas.width > 0 && canvas.height > 0;
             const imageReady = image ? image.complete && image.naturalWidth > 0 : false;
             const src = document.querySelector('#status')?.textContent ?? '';
-            return { center, imageReady, petId: image?.dataset.petId ?? 'orb', status: src };
+            return {
+              center,
+              live2DReady,
+              imageReady,
+              petId: image?.dataset.petId ?? canvas?.dataset.petId ?? 'orb',
+              companionState: canvas?.dataset.companionState ?? null,
+              motionGroup: canvas?.dataset.motionGroup ?? null,
+              status: src,
+            };
           })()
-        `)) as { center: number[] | null; imageReady: boolean; petId: string; status: string };
-        const painted =
-          (result.center !== null && (result.center[3] ?? 0) > 10) || result.imageReady;
+        `)) as { center: number[] | null; live2DReady: boolean; imageReady: boolean; petId: string; companionState: string | null; motionGroup: string | null; status: string };
+        const requestedState = process.env.PETWINDOW_SELF_TEST_STATE;
+        const capture = await window.webContents.capturePage();
+        const bitmap = capture.toBitmap();
+        let capturePainted = false;
+        for (let index = 0; index + 3 < bitmap.length; index += 4) {
+          const color = (bitmap[index] ?? 0) + (bitmap[index + 1] ?? 0) + (bitmap[index + 2] ?? 0);
+          if ((bitmap[index + 3] ?? 0) > 10 && color > 30) {
+            capturePainted = true;
+            break;
+          }
+        }
+        const rendered =
+          (result.center !== null && (result.center[3] ?? 0) > 10) ||
+          result.imageReady ||
+          capturePainted;
+        const painted = rendered && (
+          requestedState === undefined ||
+          (result.companionState === requestedState && result.motionGroup !== null)
+        );
         const outcome = {
           passed: painted,
           canvasCenter: result.center,
+          live2DReady: result.live2DReady,
+          capturePainted,
           imageReady: result.imageReady,
           petId: result.petId,
+          companionState: result.companionState,
+          motionGroup: result.motionGroup,
           status: result.status,
           connection: connectionDiagnostics(),
         };

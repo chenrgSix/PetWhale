@@ -8,12 +8,13 @@
     "build": "tsc -p tsconfig.json && tsc --noEmit -p tsconfig.renderer.json && vite build",
     "start": "electron .",
     "package": "pnpm package:win",
-    "package:win": "pnpm build && electron-packager . PetWhale --platform=win32 --arch=x64 --out=release --overwrite --asar --prune=false \"--ignore=^/(?!out(?:/|$)|package\\.json$).*\" \"--ignore=\\.test\\.js$\"",
-    "package:mac": "pnpm build && electron-packager . PetWhale --platform=darwin --arch=universal --out=release --overwrite --asar --prune=false --app-bundle-id=com.petwhale.desktop \"--ignore=^/(?!out(?:/|$)|package\\.json$).*\" \"--ignore=\\.test\\.js$\" && codesign --force --deep --sign - --timestamp=none release/PetWhale-darwin-universal/PetWhale.app",
+    "package:win": "pnpm build && electron-packager . PetWhale --platform=win32 --arch=x64 --out=release --overwrite --asar --prune=false \"--ignore=^/(?!out(?:/|$)|package\\.json$|THIRD_PARTY_NOTICES\\.txt$).*\" \"--ignore=\\.test\\.js$\"",
+    "package:mac": "pnpm build && electron-packager . PetWhale --platform=darwin --arch=universal --out=release --overwrite --asar --prune=false --app-bundle-id=com.petwhale.desktop \"--ignore=^/(?!out(?:/|$)|package\\.json$|THIRD_PARTY_NOTICES\\.txt$).*\" \"--ignore=\\.test\\.js$\" && codesign --force --deep --sign - --timestamp=none release/PetWhale-darwin-universal/PetWhale.app",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.renderer.json"
   },
   "dependencies": {
     "@petwhale/core": "workspace:*",
+    "@petwhale/renderer-live2d": "workspace:*",
     "@petwhale/renderer-orb": "workspace:*",
     "@petwhale/renderer-sprite": "workspace:*"
   },

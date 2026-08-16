@@ -19,7 +19,7 @@ Agent Runtime (DeepSeek Harness / Telos)
           │  CompanionSnapshot
           ▼
 ┌────────────────────┐
-│     Renderers      │   Orb ✅  Sprite · Live2D (planned)
+│     Renderers      │   Orb ✅  Sprite ✅  Live2D ✅ (desktop)
 └─────────┬──────────┘
           ▼
      Visual Pet  (shell.overlay)
@@ -34,11 +34,12 @@ Agent Runtime (DeepSeek Harness / Telos)
 | `@petwhale/core` | ✅ TypeScript-only，零依赖，无 DOM |
 | `@petwhale/renderer-orb` | ✅ Canvas Orb MVP（8 种状态动画） |
 | `@petwhale/renderer-sprite` | ✅ PNG/WebP/APNG 图片宠物渲染器；内置蓝色小鲸与橘色小猫 |
+| `@petwhale/renderer-live2d` | ✅ 可选 Live2D Cubism Renderer；按 8 种 Agent 状态切换模型动作，不分发 Cubism Core |
 | `@petwhale/dsh` | ✅ shell.overlay 插件（真实 DSH ModuleLoader bundle）+ ctx.sessions 状态映射 + settings.section 设置页（启用/宠物/位置/缩放/动画/入睡，localStorage 持久化、实时生效）+ 拖动（M9） |
 | `@petwhale/pet-window` | ✅ 桌面桌宠窗口（Electron）：透明、无边框、置顶、可拖动；托盘即时更换宠物；主进程自动发现 DSH 端口（动态）并订阅 host 事件流 |
 | `@petwhale/playground` | ✅ Vite 演示 |
 
-里程碑：M0 Foundation ✅ → M1 Orb ✅ → M2 DSH Plugin ✅ → M3 Agent State Mapping ✅ → M4 Telos（roster 集成）→ M5 Settings ✅ → M6 Sprite ✅ → M7 Live2D Experimental → M8 Live2D Host → M9 Interaction → M10 Voice（详见 `项目设计说明.md` §47）。
+里程碑：M0 Foundation ✅ → M1 Orb ✅ → M2 DSH Plugin ✅ → M3 Agent State Mapping ✅ → M4 Telos（roster 集成）→ M5 Settings ✅ → M6 Sprite ✅ → M7 Live2D Experimental ✅ → M8 Live2D Host（桌面本地协议 ✅，DSH Host 待接入）→ M9 Interaction → M10 Voice（详见 `项目设计说明.md` §47）。
 
 ## Monorepo
 
@@ -49,6 +50,7 @@ packages/
 ├── core/          @petwhale/core          语义层（无宿主、无渲染器、无 DOM）
 ├── renderer-orb/  @petwhale/renderer-orb  Canvas Orb 渲染器
 ├── renderer-sprite/ @petwhale/renderer-sprite PNG/WebP/APNG 宠物渲染器
+├── renderer-live2d/ @petwhale/renderer-live2d Live2D 状态动作渲染器
 └── dsh/           @petwhale/dsh           DeepSeek Harness / Telos 客户端插件
 apps/
 └── playground/    Vite 演示（MockSource 驱动）
@@ -83,7 +85,9 @@ Playground 里可以手动切换 8 种状态 / 6 种情绪 / 触发动作，也�
 - **状态映射**：`PetStateTracker`（共享模块）——`host/session-status` running → thinking / working、`host/agent-error` → error、运行结束 → success transient；agent 干活时 Orb 会动起来。
 - **交互**：整窗可拖动，位置持久化（`userData/pet-position.json`）；右键 → 退出菜单。
 - **更换宠物**：托盘菜单 →「更换宠物」可在能量球、蓝色小鲸、橘色小猫之间即时切换并持久化。
-- **自定义宠物**：托盘菜单 →「更换宠物」→「导入自定义宠物…」支持 PNG、APNG、WebP；应用在 `userData/custom-pets/` 保存独立副本，并可从「删除自定义宠物」移除。
+- **自定义图片宠物**：托盘菜单 →「更换宠物」→「导入图片宠物…」支持 PNG、APNG、WebP；应用在 `userData/custom-pets/` 保存独立副本，并可从「删除自定义宠物」移除。
+- **Live2D 宠物**：同一菜单可导入经过校验的 ZIP 运行时模型包；支持 `.model3.json`、`.moc3`、PNG 纹理、motion/expression/physics 等引用，并用 `petwhale.json` 将 8 种 Agent 状态映射到动作组。格式见 [`docs/live2d-model-package.md`](docs/live2d-model-package.md)。
+- **Live2D 运行时**：PetWhale 不分发 Cubism Core；首次导入会展示官方许可确认，渲染时从 Live2D 官方固定版本地址加载 Core。发布包含任意模型导入能力的产品前，必须自行确认 Live2D Expandable Application / SDK Release License 要求。
 - **自检**：`PETWINDOW_SELF_TEST=1 pnpm pet` 会打开窗口、采样当前 Renderer 与连接状态、把结果写到 `userData/petwhale-self-test.json` 后自动退出。
 
 ## @petwhale/dsh（M2 + M3 + M5 + M9）

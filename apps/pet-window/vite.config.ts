@@ -15,6 +15,9 @@ export default defineConfig({
       '@petwhale/core': fileURLToPath(
         new URL('../../packages/core/src/index.ts', import.meta.url),
       ),
+      '@petwhale/renderer-live2d': fileURLToPath(
+        new URL('../../packages/renderer-live2d/src/index.ts', import.meta.url),
+      ),
       '@petwhale/renderer-orb': fileURLToPath(
         new URL('../../packages/renderer-orb/src/index.ts', import.meta.url),
       ),
