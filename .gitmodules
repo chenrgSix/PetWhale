@@ -1,3 +1,4 @@
 [submodule "vendor/deepseek-harness"]
 	path = vendor/deepseek-harness
 	url = https://github.com/deepseek-ai/DeepSeek-Harness.git
+	shallow = true

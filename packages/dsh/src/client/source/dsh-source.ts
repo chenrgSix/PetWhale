@@ -1,13 +1,18 @@
 import type {
+  ConversationSnapshot,
+  ISessions,
+  SessionFace,
+  SessionId,
+} from '@deepseek-ai/dsh-client-runtime/client';
+import type {
   CompanionSnapshot,
   CompanionSource,
-  CompanionState,
 } from '@petwhale/core';
-import type {
-  ISessionsCompat,
-  SessionId,
-  SessionListStateCompat,
-} from '../types/dsh-compat';
+import {
+  composeSnapshot,
+  createCompletionTracking,
+  type CompletionTracking,
+} from './resolve-state';
 
 export interface DshSourceOptions {
   /** Host label carried into snapshot context ('deepseek-harness' | 'telos'). */
@@ -15,18 +20,22 @@ export interface DshSourceOptions {
 }
 
 /**
- * DSH host adapter (design doc §20). Watches `ctx.sessions` and projects the
- * current session into CompanionSnapshots.
+ * DSH host adapter (design doc §20, milestone M3). Watches `ctx.sessions`
+ * and projects the current session's conversation snapshot into
+ * CompanionSnapshots:
  *
- * M0 status: the *conversation* feed (the precise running/partial/runningCalls
- * mapping) is wired in M3 by binding the current session's conversation
- * snapshot. Until then the source publishes list-level signals only
- * (running → thinking, pendingInteraction → waiting, completed → success) so
- * the state is never stale-bad — see {@link DshCompanionSource.start}.
+ *   sessions.list (current session id)
+ *     → sessions.binding(id).session   (ObservableSnapshot<ConversationSnapshot>)
+ *       → composeSnapshot → { state, emotion, activity, context }
+ *
+ * Completion is derived in the source: an active conversation that settles
+ * emits a transient `success` once (the engine's scheduler then holds it for
+ * successHoldMs before falling back to idle).
  */
 export class DshCompanionSource implements CompanionSource {
-  private readonly sessions: ISessionsCompat;
+  private readonly sessions: ISessions;
   private readonly host: string;
+  private readonly tracking: CompletionTracking = createCompletionTracking();
   private snapshot: CompanionSnapshot = {
     state: 'idle',
     emotion: 'neutral',
@@ -34,9 +43,11 @@ export class DshCompanionSource implements CompanionSource {
   };
   private readonly listeners = new Set<() => void>();
   private unsubscribeList: (() => void) | null = null;
-  private lastSessionId: SessionId | undefined;
+  private unsubscribeConversation: (() => void) | null = null;
+  private session: SessionFace | null = null;
+  private sessionId: SessionId | undefined;
 
-  constructor(sessions: ISessionsCompat, options: DshSourceOptions = {}) {
+  constructor(sessions: ISessions, options: DshSourceOptions = {}) {
     this.sessions = sessions;
     this.host = options.host ?? 'deepseek-harness';
     this.snapshot.context = { host: this.host };
@@ -53,7 +64,7 @@ export class DshCompanionSource implements CompanionSource {
     };
   }
 
-  /** Begin watching the session list (and, in M3, the conversation feed). */
+  /** Begin watching the session list and the current session's conversation. */
   start(): void {
     if (this.unsubscribeList) return;
     this.unsubscribeList = this.sessions.list.subscribe(() => this.onListChanged());
@@ -61,6 +72,7 @@ export class DshCompanionSource implements CompanionSource {
   }
 
   dispose(): void {
+    this.unbindSession();
     this.unsubscribeList?.();
     this.unsubscribeList = null;
     this.listeners.clear();
@@ -69,50 +81,83 @@ export class DshCompanionSource implements CompanionSource {
   private onListChanged(): void {
     const list = this.sessions.list.getSnapshot();
     const current = list.current;
-
-    if (current !== undefined && current !== this.lastSessionId) {
-      // TODO(M3): bind the session face and subscribe its conversation
-      // snapshot, then run composeSnapshot() on every change:
-      //   const binding = this.sessions.binding(current);
-      //   binding?.session.conversation.subscribe(...)
-      this.lastSessionId = current;
+    if (current !== this.sessionId) {
+      this.bindSession(current);
+      return;
     }
-    if (current === undefined && this.lastSessionId !== undefined) {
-      this.lastSessionId = undefined;
+    // Same current id but no bound session yet (binding resolves lazily):
+    // retry the bind on the next list change.
+    if (current !== undefined && this.session === null) {
+      this.bindSession(current);
     }
-
-    this.refreshFromList(list);
   }
 
-  /**
-   * Provisional list-level projection until the conversation feed lands (M3).
-   * List rows expose coarse signals only: running / pendingInteraction /
-   * completed.
-   */
-  private refreshFromList(list: SessionListStateCompat): void {
-    const current = list.current;
-    const summary = current !== undefined ? list.byId[current] : undefined;
+  private bindSession(sessionId: SessionId | undefined): void {
+    this.unbindSession();
+    this.sessionId = sessionId;
+    // Completion tracking is per-session; a switch must not leak a stale
+    // "was active" signal into the next conversation.
+    this.tracking.lastNonIdle = null;
+    if (sessionId === undefined) {
+      this.publishFromConversation(null, undefined);
+      return;
+    }
+    const binding = this.sessions.binding(sessionId);
+    if (!binding) {
+      this.publishFromConversation(null, sessionId);
+      return;
+    }
+    this.session = binding.session;
+    this.unsubscribeConversation = this.session.subscribe(() =>
+      this.onConversationChanged(),
+    );
+    this.onConversationChanged();
+  }
+
+  private unbindSession(): void {
+    this.unsubscribeConversation?.();
+    this.unsubscribeConversation = null;
+    this.session = null;
+  }
+
+  private onConversationChanged(): void {
+    this.publishFromConversation(
+      this.session?.getSnapshot() ?? null,
+      this.sessionId,
+    );
+  }
+
+  private publishFromConversation(
+    conversation: ConversationSnapshot | null,
+    sessionId: SessionId | undefined,
+  ): void {
     const now = Date.now();
-
-    let state: CompanionState = 'idle';
-    if (summary) {
-      if (summary.pendingInteraction) state = 'waiting';
-      else if (summary.running) state = 'thinking';
-      else if (summary.completed && !summary.running) state = 'success';
+    const context = { host: this.host, sessionId };
+    if (!conversation) {
+      this.publish({
+        state: 'idle',
+        emotion: 'neutral',
+        since: now,
+        context,
+      });
+      return;
     }
-    this.publish(state, current, now);
+    const composed = composeSnapshot(conversation, this.tracking, now, context);
+    // composeSnapshot returns a fresh tracking object; fold it back so the
+    // source keeps the completion window across snapshots.
+    this.tracking.lastNonIdle = composed.tracking.lastNonIdle;
+    this.publish(composed.snapshot);
   }
 
-  private publish(state: CompanionState, sessionId: SessionId | undefined, now: number): void {
+  private publish(snapshot: CompanionSnapshot): void {
+    const previous = this.snapshot;
     const changed =
-      state !== this.snapshot.state ||
-      sessionId !== this.snapshot.context?.sessionId;
-    this.snapshot = {
-      ...this.snapshot,
-      state,
-      since: now,
-      context: { ...this.snapshot.context, sessionId },
-    };
+      snapshot.state !== previous.state ||
+      snapshot.emotion !== previous.emotion ||
+      snapshot.activity?.kind !== previous.activity?.kind ||
+      snapshot.activity?.label !== previous.activity?.label ||
+      snapshot.context?.sessionId !== previous.context?.sessionId;
+    this.snapshot = snapshot;
     if (changed) {
       for (const listener of this.listeners) listener();
     }

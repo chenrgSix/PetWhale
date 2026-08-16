@@ -1,13 +1,13 @@
 import type {
+  ConversationSnapshot,
+  RunningToolCall,
+} from '@deepseek-ai/dsh-client-runtime/client';
+import type {
   CompanionActivity,
   CompanionEmotion,
   CompanionSnapshot,
   CompanionState,
 } from '@petwhale/core';
-import type {
-  ConversationSnapshotCompat,
-  RunningToolCallCompat,
-} from '../types/dsh-compat';
 
 /**
  * DSH → companion state mapping (design doc §19). Pure and stateless — feed
@@ -15,7 +15,7 @@ import type {
  * understand.
  */
 export function resolveState(
-  session: ConversationSnapshotCompat,
+  session: ConversationSnapshot,
 ): CompanionState {
   if (session.promptError) return 'error';
   if (session.lastAgentError) return 'error';
@@ -28,7 +28,7 @@ export function resolveState(
 }
 
 export function resolveEmotion(
-  session: ConversationSnapshotCompat,
+  session: ConversationSnapshot,
 ): CompanionEmotion {
   if (session.promptError || session.lastAgentError) return 'concerned';
   if (session.runningCalls.length > 0) return 'focused';
@@ -37,7 +37,7 @@ export function resolveEmotion(
 }
 
 export function resolveActivity(
-  session: ConversationSnapshotCompat,
+  session: ConversationSnapshot,
 ): CompanionActivity | undefined {
   if (session.runningCalls.length > 0) {
     const call = latestRunningCall(session.runningCalls);
@@ -51,7 +51,7 @@ export function resolveActivity(
 }
 
 export function hasReasoning(
-  partial: ConversationSnapshotCompat['partial'],
+  partial: ConversationSnapshot['partial'],
 ): boolean {
   return (
     partial?.blocks.some(
@@ -62,7 +62,7 @@ export function hasReasoning(
 }
 
 export function hasAnswer(
-  partial: ConversationSnapshotCompat['partial'],
+  partial: ConversationSnapshot['partial'],
 ): boolean {
   return (
     partial?.blocks.some(
@@ -73,8 +73,8 @@ export function hasAnswer(
 }
 
 export function latestRunningCall(
-  calls: readonly RunningToolCallCompat[],
-): RunningToolCallCompat | undefined {
+  calls: readonly RunningToolCall[],
+): RunningToolCall | undefined {
   if (calls.length === 0) return undefined;
   return calls[calls.length - 1];
 }
@@ -97,7 +97,7 @@ export function createCompletionTracking(): CompletionTracking {
  * (the scheduler then holds it for successHoldMs).
  */
 export function composeSnapshot(
-  session: ConversationSnapshotCompat,
+  session: ConversationSnapshot,
   tracking: CompletionTracking,
   now: number = Date.now(),
   context?: CompanionSnapshot['context'],

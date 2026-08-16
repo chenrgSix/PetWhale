@@ -1,7 +1,7 @@
 import type {
-  ConversationSnapshotCompat,
-  RunningToolCallCompat,
-} from '../types/dsh-compat';
+  ConversationSnapshot,
+  RunningToolCall,
+} from '@deepseek-ai/dsh-client-runtime/client';
 import { describe, expect, it } from 'vitest';
 import {
   composeSnapshot,
@@ -14,7 +14,7 @@ import {
   resolveState,
 } from './resolve-state';
 
-function conversation(overrides: Partial<ConversationSnapshotCompat> = {}): ConversationSnapshotCompat {
+function conversation(overrides: Partial<ConversationSnapshot> = {}): ConversationSnapshot {
   return {
     sessionId: 's1',
     partial: null,
@@ -28,15 +28,15 @@ function conversation(overrides: Partial<ConversationSnapshotCompat> = {}): Conv
   };
 }
 
-function reasoningPartial(): NonNullable<ConversationSnapshotCompat['partial']> {
+function reasoningPartial(): NonNullable<ConversationSnapshot['partial']> {
   return { turn: 1, step: 1, blocks: [{ kind: 'reasoning', text: 'let me think' }] };
 }
 
-function textPartial(): NonNullable<ConversationSnapshotCompat['partial']> {
+function textPartial(): NonNullable<ConversationSnapshot['partial']> {
   return { turn: 1, step: 1, blocks: [{ kind: 'text', text: 'here is the answer' }] };
 }
 
-function call(name = 'bash'): RunningToolCallCompat {
+function call(name = 'bash'): RunningToolCall {
   return { callId: 'c1', name, argsRaw: '{}', turn: 1, step: 1, time: 0 };
 }
 

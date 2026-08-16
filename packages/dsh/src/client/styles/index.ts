@@ -22,3 +22,23 @@ export const OVERLAY_CSS = `
   height: 100%;
 }
 `;
+
+const STYLE_TAG_ID = '@petwhale/dsh/overlay';
+
+/**
+ * Inject the overlay stylesheet once. The tag carries `data-plugin` so the
+ * DSH client module loader removes it on plugin unload.
+ * @returns the injected tag, or null when it already exists / DOM is absent.
+ */
+export function injectOverlayStyle(): HTMLStyleElement | null {
+  if (typeof document === 'undefined') return null;
+  if (document.querySelector(`style[data-plugin-css="${STYLE_TAG_ID}"]`)) {
+    return null;
+  }
+  const tag = document.createElement('style');
+  tag.dataset.plugin = '@petwhale/dsh';
+  tag.dataset.pluginCss = STYLE_TAG_ID;
+  tag.textContent = OVERLAY_CSS;
+  document.head.appendChild(tag);
+  return tag;
+}

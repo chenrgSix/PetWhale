@@ -27,16 +27,16 @@ Agent Runtime (DeepSeek Harness / Telos)
 
 ## 当前状态
 
-**M0 — Foundation（0.0.1）**：Monorepo、Core 契约、Engine、Scheduler、测试、Playground。
+**M0 — Foundation（0.0.1）** ✅ · **M2 — DSH Plugin** ✅ · **M3 — Agent State Mapping** ✅
 
 | 包 | 状态 |
 | --- | --- |
 | `@petwhale/core` | ✅ TypeScript-only，零依赖，无 DOM |
 | `@petwhale/renderer-orb` | ✅ Canvas Orb MVP（8 种状态动画） |
-| `@petwhale/dsh` | 🚧 骨架：插件入口 + 状态映射逻辑（真实 DSH 接线在 M2/M3） |
+| `@petwhale/dsh` | ✅ shell.overlay 插件（真实 DSH ModuleLoader bundle）+ ctx.sessions 状态映射（thinking / working / waiting / success / error） |
 | `@petwhale/playground` | ✅ Vite 演示 |
 
-里程碑：M0 Foundation → M1 Orb → M2 DSH Plugin → M3 Agent State Mapping → M4 Telos → M5 Settings → M6 Sprite → M7 Live2D Experimental → M8 Live2D Host → M9 Interaction → M10 Voice（详见 `项目设计说明.md` §47）。
+里程碑：M0 Foundation ✅ → M1 Orb ✅ → M2 DSH Plugin ✅ → M3 Agent State Mapping ✅ → M4 Telos（roster 集成）→ M5 Settings → M6 Sprite → M7 Live2D Experimental → M8 Live2D Host → M9 Interaction → M10 Voice（详见 `项目设计说明.md` §47）。
 
 ## Monorepo
 
@@ -59,14 +59,22 @@ tests/compatibility/       DSH / Telos 兼容性测试
 需要 Node ≥ 20 与 pnpm（`corepack enable` 或 `npm i -g pnpm`）。
 
 ```bash
-pnpm install
-pnpm test          # vitest 单测
-pnpm typecheck     # 全包 tsc --noEmit
-pnpm build         # tsdown 构建三个 package 到 lib/
-pnpm playground    # 启动 Vite 演示（http://localhost:5173）
+pnpm install        # 依赖已装好
+pnpm test           # 59 个单测 + bundle 兼容门（兼容门需要先 pnpm build）
+pnpm typecheck && pnpm build
+pnpm playground     # http://localhost:5173 预览 Orb
 ```
 
 Playground 里可以手动切换 8 种状态 / 6 种情绪 / 触发动作，也可以运行一段脚本化的「agent 故事」（思考 → 工具 → 回答 → 成功 → 空闲），直接观察 Scheduler 的抖动过滤与 transient 保持。
+
+## @petwhale/dsh（M2 + M3）
+
+- **插件入口**：`inject: ['slots', 'sessions']` + `apply(ctx)`，通过 `ctx.slots.inject('shell.overlay', ...)` 注册 `id: 'petwhale'` 的浮层条目（设计文档 §17 的官方规则）。
+- **类型**：按 DeepSeek Harness **0.1.0-rc.5** 的真实 API 以环境模块声明（`src/client/types/dsh.d.ts`）镜像；源码按真实插件风格从 `@deepseek-ai/dsh-client-runtime/client` 导入类型。仓库自包含可编译；接入真实包时 TypeScript 自动使用真实类型。
+- **状态映射**：`DshCompanionSource` 订阅 `ctx.sessions.list` → 当前会话 `binding.session`（`ObservableSnapshot<ConversationSnapshot>`）→ `composeSnapshot`（推理→thinking、工具→working、等待→waiting、错误→error、完成→success transient）。
+- **bundle**：`pnpm --filter @petwhale/dsh build` 产出 DSH ModuleLoader 格式的 `lib/client.js`（`window.__ModuleLoader__.load({ id: "@petwhale/dsh", factory })`，react 等平台模块 external，core/orb 内联），可直接作为 `/plugins/@petwhale/dsh/client.js` 供给运行时。
+- **兼容门**：`tests/compatibility/dsh-bundle.test.ts` 在模拟浏览器沙箱中加载真实 bundle，端到端验证注册与状态管线（先 `pnpm build` 再 `pnpm test` 生效）。
+- **安装到宿主**：把构建产物（`lib/` + `package.json`，声明 `dsh.client`）放入宿主 profiles 的 node_modules 并加入 roster —— DeepSeek Harness / Telos 的接线是 M4（Telos 薄 PR）与 `tests/compatibility` 的真实集成测试。
 
 ## Compatibility
 
@@ -75,7 +83,7 @@ Playground 里可以手动切换 8 种状态 / 6 种情绪 / 触发动作，也�
 | DeepSeek Harness | 0.1.0-rc.5 | ✅ 目标版本（M2/M3 接线验证） |
 | Telos | 3a159a8 | ✅ 目标版本（M4） |
 
-> 注意：npm 上发布的 `@deepseek-ai/dsh-client-*@0.0.1-rc.1` 早于 `shell.overlay`；`@petwhale/dsh` 面向 0.1.0-rc.5 的真实 API 编写（见 `vendor/` 与 `packages/dsh/src/client/types/dsh-compat.ts`）。
+> 注意：npm 上发布的 `@deepseek-ai/dsh-client-*@0.0.1-rc.1` 早于 `shell.overlay`；`@petwhale/dsh` 面向 0.1.0-rc.5 的真实 API 编写（见 `vendor/` 与 `packages/dsh/src/client/types/dsh.d.ts`）。
 
 ## 架构规则
 

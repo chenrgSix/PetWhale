@@ -19,4 +19,4 @@ npm 上发布的 `@deepseek-ai/dsh-client-runtime` / `@deepseek-ai/dsh-client-ui
 git submodule update --init --recursive
 ```
 
-克隆完成前，`@petwhale/dsh` 使用 `packages/dsh/src/client/types/dsh-compat.ts` 中按 0.1.0-rc.5 忠实镜像的**结构类型桩**编译与测试（M2 接入真实类型）。
+已克隆的 checkout 同时提供：官方客户端插件构建 preset（`packages/client/tsdown.client.ts`，`@petwhale/dsh` 的 tsdown 配置是对其忠实移植）与 0.1.0-rc.5 的真实 API 源码。`@petwhale/dsh` 的类型则以 `src/client/types/dsh.d.ts` 的环境模块声明镜像 0.1.0-rc.5 表面——仓库自包含可编译，接入真实包时 TypeScript 自动使用真实类型。
