@@ -17,10 +17,15 @@ export const OVERLAY_CSS = `
   height: 360px;
   pointer-events: none;
   z-index: 40;
+  cursor: grab;
+  touch-action: none;
 }
 .${OVERLAY_CLASS}[data-anchor="bottom-left"] {
   right: auto;
   left: 24px;
+}
+.${OVERLAY_CLASS}:active {
+  cursor: grabbing;
 }
 .${PET_CLASS} {
   pointer-events: auto;

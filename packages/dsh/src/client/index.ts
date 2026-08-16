@@ -136,3 +136,5 @@ export {
   injectSettingsStyle,
 } from './styles';
 export { OVERLAY_ENTRY_ID } from './overlay';
+export { clampOverlayPosition } from './overlay/position';
+export type { OverlayPosition } from './overlay/position';

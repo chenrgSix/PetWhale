@@ -6,6 +6,7 @@ import type {
 } from '@petwhale/core';
 import { OrbRenderer } from '@petwhale/renderer-orb';
 import type { PreferencesStore } from '../settings/preferences-store';
+import { clampOverlayPosition } from './position';
 import { OVERLAY_CLASS, PET_CLASS } from '../styles';
 
 /** The shell.overlay entry id (design doc §17). */
@@ -17,6 +18,13 @@ export interface PetWhaleOverlayProps {
   preferences: PreferencesStore;
 }
 
+interface DragState {
+  startX: number;
+  startY: number;
+  originX: number;
+  originY: number;
+}
+
 /**
  * The shell.overlay entry: an absolutely positioned, click-through overlay
  * containing the pet surface. The orb is mounted imperatively into the
@@ -25,12 +33,15 @@ export interface PetWhaleOverlayProps {
  * component so the animation loop never outlives the surface.
  *
  * Preferences (design doc §33) drive the surface reactively: scale / motion
- * re-mount the renderer with fresh options, the anchor moves the overlay,
- * and `enabled: false` unmounts the pet entirely.
+ * re-mount the renderer with fresh options, `enabled: false` unmounts the
+ * pet, and the pet is draggable (M9): the free-form position is clamped to
+ * the frame and persisted; `anchor` applies only while no position is saved.
  */
 export function PetWhaleOverlay({ engine, preferences }: PetWhaleOverlayProps) {
   const prefs = useSyncExternalStore(preferences.subscribe, preferences.get);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const overlayRef = useRef<HTMLDivElement | null>(null);
+  const dragState = useRef<DragState | null>(null);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -46,10 +57,83 @@ export function PetWhaleOverlay({ engine, preferences }: PetWhaleOverlayProps) {
     };
   }, [engine, prefs.enabled, prefs.scale, prefs.motion]);
 
+  const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>): void => {
+    const overlay = overlayRef.current;
+    if (!overlay) return;
+    dragState.current = {
+      startX: event.clientX,
+      startY: event.clientY,
+      originX: overlay.offsetLeft,
+      originY: overlay.offsetTop,
+    };
+    overlay.setPointerCapture(event.pointerId);
+    event.preventDefault();
+  };
+
+  const moveOverlay = (clientX: number, clientY: number): void => {
+    const drag = dragState.current;
+    const overlay = overlayRef.current;
+    if (!drag || !overlay) return;
+    const next = clampOverlayPosition(
+      drag.originX + (clientX - drag.startX),
+      drag.originY + (clientY - drag.startY),
+      overlay.offsetWidth,
+      overlay.offsetHeight,
+      window.innerWidth,
+      window.innerHeight,
+    );
+    overlay.style.left = `${next.x}px`;
+    overlay.style.top = `${next.y}px`;
+    overlay.style.right = 'auto';
+    overlay.style.bottom = 'auto';
+  };
+
+  const handlePointerMove = (event: React.PointerEvent<HTMLDivElement>): void => {
+    moveOverlay(event.clientX, event.clientY);
+  };
+
+  const endDrag = (clientX: number, clientY: number, pointerId: number): void => {
+    const drag = dragState.current;
+    const overlay = overlayRef.current;
+    dragState.current = null;
+    if (!drag || !overlay) return;
+    try {
+      overlay.releasePointerCapture(pointerId);
+    } catch {
+      // Capture may already be released (pointercancel).
+    }
+    const next = clampOverlayPosition(
+      drag.originX + (clientX - drag.startX),
+      drag.originY + (clientY - drag.startY),
+      overlay.offsetWidth,
+      overlay.offsetHeight,
+      window.innerWidth,
+      window.innerHeight,
+    );
+    preferences.update({ position: next });
+  };
+
+  const handlePointerUp = (event: React.PointerEvent<HTMLDivElement>): void => {
+    endDrag(event.clientX, event.clientY, event.pointerId);
+  };
+
   if (!prefs.enabled) return null;
 
+  const style = prefs.position
+    ? { left: prefs.position.x, top: prefs.position.y, right: 'auto', bottom: 'auto' }
+    : undefined;
+
   return (
-    <div className={OVERLAY_CLASS} data-anchor={prefs.anchor}>
+    <div
+      ref={overlayRef}
+      className={OVERLAY_CLASS}
+      data-anchor={prefs.position ? undefined : prefs.anchor}
+      style={style}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerUp}
+    >
       <div ref={containerRef} className={PET_CLASS} />
     </div>
   );

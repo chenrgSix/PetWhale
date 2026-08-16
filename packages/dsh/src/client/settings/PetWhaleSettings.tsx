@@ -49,7 +49,11 @@ export function PetWhaleSettings({ preferences }: PetWhaleSettingsProps) {
         <select
           value={prefs.anchor}
           onChange={(event) =>
-            preferences.update({ anchor: event.target.value as 'bottom-left' | 'bottom-right' })
+            preferences.update({
+              anchor: event.target.value as 'bottom-left' | 'bottom-right',
+              // A manual anchor choice overrides any dragged position.
+              position: undefined,
+            })
           }
         >
           {ANCHOR_OPTIONS.map((option) => (

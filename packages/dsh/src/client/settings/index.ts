@@ -9,6 +9,11 @@ export interface PetWhalePreferences {
   scale: number;
   motion: boolean;
   sleepAfterMs: number;
+  /**
+   * Free-form overlay position set by dragging the pet (M9). When present it
+   * overrides `anchor`; changing the anchor in settings clears it.
+   */
+  position?: { x: number; y: number };
   /** Renderer-specific configuration (e.g. live2d character/scale). */
   rendererConfig?: Record<string, unknown>;
 }

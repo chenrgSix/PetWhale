@@ -43,6 +43,8 @@ export {
   injectOverlayStyle,
   injectSettingsStyle,
 } from './client/styles';
+export { clampOverlayPosition } from './client/overlay/position';
+export type { OverlayPosition } from './client/overlay/position';
 
 /** Host loader entry: no host-side behavior (browser-only plugin). */
 export function apply(): void {}
