@@ -1,0 +1,46 @@
+/**
+ * User preferences (design doc §33–§35). First version persists to
+ * localStorage; a settings.section registration lands in M5.
+ */
+export interface PetWhalePreferences {
+  enabled: boolean;
+  renderer: string;
+  anchor: 'bottom-left' | 'bottom-right';
+  scale: number;
+  motion: boolean;
+  sleepAfterMs: number;
+  /** Renderer-specific configuration (e.g. live2d character/scale). */
+  rendererConfig?: Record<string, unknown>;
+}
+
+export const DEFAULT_PREFERENCES: PetWhalePreferences = {
+  enabled: true,
+  renderer: 'orb',
+  anchor: 'bottom-right',
+  scale: 1,
+  motion: true,
+  sleepAfterMs: 5 * 60_000,
+};
+
+const STORAGE_KEY = 'petwhale.preferences.v1';
+
+export function loadPreferences(storage: Pick<Storage, 'getItem'> = localStorage): PetWhalePreferences {
+  try {
+    const raw = storage.getItem(STORAGE_KEY);
+    if (!raw) return { ...DEFAULT_PREFERENCES };
+    return { ...DEFAULT_PREFERENCES, ...(JSON.parse(raw) as Partial<PetWhalePreferences>) };
+  } catch {
+    return { ...DEFAULT_PREFERENCES };
+  }
+}
+
+export function savePreferences(
+  preferences: PetWhalePreferences,
+  storage: Pick<Storage, 'setItem'> = localStorage,
+): void {
+  try {
+    storage.setItem(STORAGE_KEY, JSON.stringify(preferences));
+  } catch {
+    // Storage unavailable (private mode / quota): keep running in-memory.
+  }
+}

@@ -1,0 +1,29 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.22.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      # npm pack smoke: each publishable package must pack cleanly.
+      - name: pack smoke
+        run: |
+          cd packages/core && pnpm pack --pack-destination ../../.pack-smoke
+          cd ../renderer-orb && pnpm pack --pack-destination ../../.pack-smoke
+          cd ../dsh && pnpm pack --pack-destination ../../.pack-smoke
+      - name: verify tarballs
+        run: ls -la .pack-smoke

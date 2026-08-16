@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PetWhale Playground</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <main id="app">
+      <header class="header">
+        <h1>PetWhale <span class="muted">playground</span></h1>
+        <p class="tagline">Visual companions for AI agents.</p>
+      </header>
+
+      <section class="panel">
+        <h2>Mock agent</h2>
+        <div class="row">
+          <button id="btn-story" class="primary">▶ Run agent story</button>
+          <button id="btn-pause">⏸ Pause (hidden)</button>
+        </div>
+        <h3>State</h3>
+        <div id="states" class="btn-grid"></div>
+        <h3>Emotion</h3>
+        <div id="emotions" class="btn-grid"></div>
+        <h3>Actions</h3>
+        <div id="actions" class="btn-grid"></div>
+      </section>
+
+      <section class="panel status">
+        <h2>Pipeline</h2>
+        <dl>
+          <dt>source state</dt>
+          <dd id="src-state">—</dd>
+          <dt>effective state</dt>
+          <dd id="eff-state">—</dd>
+          <dt>activity</dt>
+          <dd id="activity">—</dd>
+          <dt>engine</dt>
+          <dd id="engine">—</dd>
+        </dl>
+      </section>
+    </main>
+
+    <div id="pet-whale" class="pw-overlay"><div class="pw-pet"></div></div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

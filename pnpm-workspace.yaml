@@ -1,0 +1,14 @@
+packages:
+  - 'packages/*'
+  - 'apps/*'
+
+# pnpm 11 project-level settings (pnpm 11 reads these from
+# pnpm-workspace.yaml, not from .npmrc).
+storeDir: .tools/pnpm-store
+packageImportMethod: copy
+confirmModulesPurge: false
+allowBuilds:
+  # esbuild 0.28 ships its binary via the optional platform package
+  # (@esbuild/win32-x64 etc.), so its postinstall is a no-op fallback that the
+  # sandbox cannot run (spawn EPERM). Explicitly denied.
+  esbuild: false
