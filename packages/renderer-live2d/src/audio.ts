@@ -5,12 +5,15 @@ interface AudioContextLike {
 
 interface SoundLibraryLike {
   disableAutoPause: boolean;
+  muteAll?(): unknown;
+  unmuteAll?(): unknown;
   context?: {
     audioContext?: AudioContextLike;
   };
 }
 
 export interface Live2DAudioController {
+  setEnabled(enabled: boolean): void;
   resume(): Promise<boolean>;
 }
 
@@ -18,8 +21,15 @@ export function configureLive2DAudio(
   sound: SoundLibraryLike,
 ): Live2DAudioController {
   sound.disableAutoPause = true;
+  let enabled = true;
   return {
+    setEnabled(nextEnabled: boolean): void {
+      enabled = nextEnabled;
+      if (enabled) sound.unmuteAll?.();
+      else sound.muteAll?.();
+    },
     async resume(): Promise<boolean> {
+      if (!enabled) return true;
       const context = sound.context?.audioContext;
       if (context === undefined || context.state === 'running') return true;
       try {

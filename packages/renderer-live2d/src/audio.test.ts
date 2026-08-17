@@ -30,4 +30,26 @@ describe('configureLive2DAudio', () => {
     });
     await expect(controller.resume()).resolves.toBe(false);
   });
+
+  it('mutes and unmutes all Live2D motion audio', async () => {
+    const muteAll = vi.fn();
+    const unmuteAll = vi.fn();
+    const resume = vi.fn(async () => undefined);
+    const controller = configureLive2DAudio({
+      disableAutoPause: false,
+      muteAll,
+      unmuteAll,
+      context: { audioContext: { state: 'suspended', resume } },
+    });
+
+    controller.setEnabled(false);
+    await expect(controller.resume()).resolves.toBe(true);
+    expect(muteAll).toHaveBeenCalledOnce();
+    expect(resume).not.toHaveBeenCalled();
+
+    controller.setEnabled(true);
+    await expect(controller.resume()).resolves.toBe(true);
+    expect(unmuteAll).toHaveBeenCalledOnce();
+    expect(resume).toHaveBeenCalledOnce();
+  });
 });

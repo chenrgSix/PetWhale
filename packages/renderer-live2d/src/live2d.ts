@@ -41,6 +41,7 @@ export class Live2DRenderer implements CompanionRenderer {
   private lastState: CompanionSnapshot['state'] | null = null;
   private motionGeneration = 0;
   private scaleMultiplier = 1;
+  private soundEnabled = true;
   private disposed = false;
 
   constructor(pet: Live2DPetManifest) {
@@ -93,9 +94,11 @@ export class Live2DRenderer implements CompanionRenderer {
       }
       this.app = app;
       this.audio = audio;
+      this.audio.setEnabled(this.soundEnabled);
       wrapper.addEventListener('pointerdown', this.handleAudioUnlock, true);
       app.canvas.dataset.petId = this.pet.id;
       app.canvas.dataset.renderer = 'live2d';
+      app.canvas.dataset.soundEnabled = String(this.soundEnabled);
       wrapper.appendChild(app.canvas);
       const model = await live2d.Live2DModel.from(this.pet.modelUrl, {
         ticker: app.ticker,
@@ -153,6 +156,15 @@ export class Live2DRenderer implements CompanionRenderer {
     if (this.wrapper !== null) this.wrapper.style.visibility = visible ? 'visible' : 'hidden';
     if (visible) this.app?.ticker.start();
     else this.app?.ticker.stop();
+  }
+
+  setSoundEnabled(enabled: boolean): void {
+    this.soundEnabled = enabled;
+    this.audio?.setEnabled(enabled);
+    if (this.app !== null) {
+      this.app.canvas.dataset.soundEnabled = String(enabled);
+      if (!enabled) this.app.canvas.dataset.audioStatus = 'muted';
+    }
   }
 
   dispose(): void {
@@ -347,8 +359,9 @@ export class Live2DRenderer implements CompanionRenderer {
       && started
       && this.app.canvas.dataset.audioStatus !== 'error'
     ) {
-      this.app.canvas.dataset.audioStatus =
-        this.model.internalModel.motionManager.currentAudio === undefined ? 'none' : 'started';
+      this.app.canvas.dataset.audioStatus = this.soundEnabled
+        ? this.model.internalModel.motionManager.currentAudio === undefined ? 'none' : 'started'
+        : 'muted';
     }
   }
 }
