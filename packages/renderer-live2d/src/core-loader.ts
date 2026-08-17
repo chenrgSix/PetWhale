@@ -1,5 +1,5 @@
 export const LIVE2D_CUBISM_CORE_URL =
-  'https://cubism.live2d.com/sdk-web/core/06/live2dcubismcore.min.js';
+  'https://cubism.live2d.com/sdk-web/core/05/live2dcubismcore.min.js';
 
 declare global {
   interface Window {
