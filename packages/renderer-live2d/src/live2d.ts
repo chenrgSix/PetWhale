@@ -9,7 +9,7 @@ import type { Application as PixiApplication } from 'pixi.js';
 import type { Live2DModel as PixiLive2DModel } from 'untitled-pixi-live2d-engine/cubism';
 import { ensureLive2DCubismCore } from './core-loader';
 import type { Live2DMotionBinding, Live2DPetManifest } from './manifest';
-import { selectHitMotionGroup } from './interaction';
+import { selectHitMotionGroup, transformInteractionBounds } from './interaction';
 
 let pluginRegistered = false;
 
@@ -18,7 +18,7 @@ export class Live2DRenderer implements CompanionRenderer {
 
   private readonly pet: Live2DPetManifest;
   private wrapper: HTMLDivElement | null = null;
-  private interactionSurface: HTMLDivElement | null = null;
+  private readonly interactionSurfaces = new Map<string, HTMLDivElement>();
   private app: PixiApplication | null = null;
   private model: PixiLive2DModel | null = null;
   private observer: ResizeObserver | null = null;
@@ -144,7 +144,7 @@ export class Live2DRenderer implements CompanionRenderer {
     this.app = null;
     this.wrapper?.remove();
     this.wrapper = null;
-    this.interactionSurface = null;
+    this.interactionSurfaces.clear();
   }
 
   private fit(): void {
@@ -163,20 +163,24 @@ export class Live2DRenderer implements CompanionRenderer {
   }
 
   private mountInteractionSurface(wrapper: HTMLDivElement): void {
-    const surface = document.createElement('div');
-    surface.dataset.live2dInteraction = 'true';
-    surface.setAttribute('role', 'button');
-    surface.setAttribute('aria-label', `Interact with ${this.pet.label}`);
-    Object.assign(surface.style, {
-      position: 'absolute',
-      pointerEvents: 'auto',
-      WebkitAppRegion: 'no-drag',
-      cursor: 'pointer',
-      touchAction: 'manipulation',
-    });
-    surface.addEventListener('click', this.handleInteractionClick);
-    wrapper.appendChild(surface);
-    this.interactionSurface = surface;
+    if (this.model === null) return;
+    for (const hitArea of Object.keys(this.model.internalModel.hitAreas)) {
+      const surface = document.createElement('div');
+      surface.dataset.live2dInteraction = 'true';
+      surface.dataset.hitArea = hitArea;
+      surface.setAttribute('role', 'button');
+      surface.setAttribute('aria-label', `Interact with ${this.pet.label}: ${hitArea}`);
+      Object.assign(surface.style, {
+        position: 'absolute',
+        pointerEvents: 'auto',
+        WebkitAppRegion: 'no-drag',
+        cursor: 'pointer',
+        touchAction: 'manipulation',
+      });
+      surface.addEventListener('click', this.handleInteractionClick);
+      wrapper.appendChild(surface);
+      this.interactionSurfaces.set(hitArea, surface);
+    }
   }
 
   private readonly handleInteractionClick = (event: MouseEvent): void => {
@@ -192,7 +196,6 @@ export class Live2DRenderer implements CompanionRenderer {
     if (hitAreas.length === 0 || this.model === null) return;
     const hitArea = hitAreas[0];
     if (this.app !== null) this.app.canvas.dataset.hitArea = hitArea;
-    if (this.interactionSurface !== null) this.interactionSurface.dataset.hitArea = hitArea;
 
     const group = selectHitMotionGroup(hitAreas, this.availableMotionGroups());
     if (group !== undefined) {
@@ -212,18 +215,37 @@ export class Live2DRenderer implements CompanionRenderer {
   }
 
   private updateInteractionBounds(): void {
-    if (this.interactionSurface === null || this.app === null || this.model === null) return;
-    const bounds = this.model.getBounds();
-    const left = Math.max(0, bounds.x);
-    const top = Math.max(0, bounds.y);
-    const right = Math.min(this.app.screen.width, bounds.x + bounds.width);
-    const bottom = Math.min(this.app.screen.height, bounds.y + bounds.height);
-    Object.assign(this.interactionSurface.style, {
-      left: `${left}px`,
-      top: `${top}px`,
-      width: `${Math.max(0, right - left)}px`,
-      height: `${Math.max(0, bottom - top)}px`,
-    });
+    if (this.interactionSurfaces.size === 0 || this.app === null || this.model === null) return;
+    this.model.getBounds();
+    const internalModel = this.model.internalModel;
+    for (const [name, surface] of this.interactionSurfaces) {
+      const hitArea = internalModel.hitAreas[name];
+      let index = hitArea?.index ?? -1;
+      if (index < 0 && hitArea !== undefined) {
+        index = internalModel.getDrawableIndex(hitArea.id);
+        hitArea.index = index;
+      }
+      if (index < 0) {
+        surface.hidden = true;
+        continue;
+      }
+      const bounds = transformInteractionBounds(
+        internalModel.getDrawableBounds(index),
+        internalModel.localTransform,
+        this.model.worldTransform,
+      );
+      const left = Math.max(0, bounds.x);
+      const top = Math.max(0, bounds.y);
+      const right = Math.min(this.app.screen.width, bounds.x + bounds.width);
+      const bottom = Math.min(this.app.screen.height, bounds.y + bounds.height);
+      surface.hidden = right <= left || bottom <= top;
+      Object.assign(surface.style, {
+        left: `${left}px`,
+        top: `${top}px`,
+        width: `${Math.max(0, right - left)}px`,
+        height: `${Math.max(0, bottom - top)}px`,
+      });
+    }
   }
 
   private startMotion(binding: Live2DMotionBinding, idle: boolean): void {
