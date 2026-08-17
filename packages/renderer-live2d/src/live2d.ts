@@ -9,6 +9,7 @@ import type { Application as PixiApplication } from 'pixi.js';
 import type { Live2DModel as PixiLive2DModel } from 'untitled-pixi-live2d-engine/cubism';
 import { ensureLive2DCubismCore } from './core-loader';
 import type { Live2DMotionBinding, Live2DPetManifest } from './manifest';
+import { selectHitMotionGroup } from './interaction';
 
 let pluginRegistered = false;
 
@@ -17,6 +18,7 @@ export class Live2DRenderer implements CompanionRenderer {
 
   private readonly pet: Live2DPetManifest;
   private wrapper: HTMLDivElement | null = null;
+  private interactionSurface: HTMLDivElement | null = null;
   private app: PixiApplication | null = null;
   private model: PixiLive2DModel | null = null;
   private observer: ResizeObserver | null = null;
@@ -87,6 +89,8 @@ export class Live2DRenderer implements CompanionRenderer {
       model.anchor.set(0.5, 0.5);
       app.stage.addChild(model);
       this.model = model;
+      model.on('hit', this.handleHitAreas);
+      this.mountInteractionSurface(wrapper);
       this.fit();
       this.observer = new ResizeObserver(() => this.fit());
       this.observer.observe(wrapper);
@@ -111,7 +115,11 @@ export class Live2DRenderer implements CompanionRenderer {
     }
   }
 
-  trigger(_action: CompanionAction): void {}
+  trigger(action: CompanionAction): void {
+    if (action !== 'poke' || this.model === null) return;
+    const group = selectHitMotionGroup([], this.availableMotionGroups());
+    if (group !== undefined) this.startMotion({ group }, false);
+  }
 
   resize(): void {
     this.fit();
@@ -129,12 +137,14 @@ export class Live2DRenderer implements CompanionRenderer {
     this.motionGeneration += 1;
     this.observer?.disconnect();
     this.observer = null;
+    this.model?.off('hit', this.handleHitAreas);
     this.model?.destroy({ children: true, texture: true, baseTexture: true });
     this.model = null;
     this.app?.destroy({ removeView: true }, { children: true });
     this.app = null;
     this.wrapper?.remove();
     this.wrapper = null;
+    this.interactionSurface = null;
   }
 
   private fit(): void {
@@ -149,6 +159,71 @@ export class Live2DRenderer implements CompanionRenderer {
     ) * this.scaleMultiplier;
     this.model.scale.set(scale);
     this.model.position.set(this.app.screen.width / 2, this.app.screen.height / 2);
+    this.updateInteractionBounds();
+  }
+
+  private mountInteractionSurface(wrapper: HTMLDivElement): void {
+    const surface = document.createElement('div');
+    surface.dataset.live2dInteraction = 'true';
+    surface.setAttribute('role', 'button');
+    surface.setAttribute('aria-label', `Interact with ${this.pet.label}`);
+    Object.assign(surface.style, {
+      position: 'absolute',
+      pointerEvents: 'auto',
+      WebkitAppRegion: 'no-drag',
+      cursor: 'pointer',
+      touchAction: 'manipulation',
+    });
+    surface.addEventListener('click', this.handleInteractionClick);
+    wrapper.appendChild(surface);
+    this.interactionSurface = surface;
+  }
+
+  private readonly handleInteractionClick = (event: MouseEvent): void => {
+    if (event.button !== 0 || this.app === null || this.model === null) return;
+    const canvasBounds = this.app.canvas.getBoundingClientRect();
+    if (canvasBounds.width <= 0 || canvasBounds.height <= 0) return;
+    const x = ((event.clientX - canvasBounds.left) / canvasBounds.width) * this.app.screen.width;
+    const y = ((event.clientY - canvasBounds.top) / canvasBounds.height) * this.app.screen.height;
+    this.model.tap(x, y);
+  };
+
+  private readonly handleHitAreas = (hitAreas: string[]): void => {
+    if (hitAreas.length === 0 || this.model === null) return;
+    const hitArea = hitAreas[0];
+    if (this.app !== null) this.app.canvas.dataset.hitArea = hitArea;
+    if (this.interactionSurface !== null) this.interactionSurface.dataset.hitArea = hitArea;
+
+    const group = selectHitMotionGroup(hitAreas, this.availableMotionGroups());
+    if (group !== undefined) {
+      if (this.app !== null) this.app.canvas.dataset.motionGroup = group;
+      this.startMotion({ group }, false);
+      return;
+    }
+
+    void this.model.expression().catch((error: unknown) => {
+      console.error('[Live2DRenderer] failed to play hit expression', error);
+    });
+  };
+
+  private availableMotionGroups(): string[] {
+    if (this.model === null) return [];
+    return Object.keys(this.model.internalModel.motionManager.motionGroups);
+  }
+
+  private updateInteractionBounds(): void {
+    if (this.interactionSurface === null || this.app === null || this.model === null) return;
+    const bounds = this.model.getBounds();
+    const left = Math.max(0, bounds.x);
+    const top = Math.max(0, bounds.y);
+    const right = Math.min(this.app.screen.width, bounds.x + bounds.width);
+    const bottom = Math.min(this.app.screen.height, bounds.y + bounds.height);
+    Object.assign(this.interactionSurface.style, {
+      left: `${left}px`,
+      top: `${top}px`,
+      width: `${Math.max(0, right - left)}px`,
+      height: `${Math.max(0, bottom - top)}px`,
+    });
   }
 
   private startMotion(binding: Live2DMotionBinding, idle: boolean): void {
