@@ -9,9 +9,22 @@ import type { Application as PixiApplication } from 'pixi.js';
 import type { Live2DModel as PixiLive2DModel } from 'untitled-pixi-live2d-engine/cubism';
 import { ensureLive2DCubismCore } from './core-loader';
 import type { Live2DMotionBinding, Live2DPetManifest } from './manifest';
-import { selectHitMotionGroup, transformInteractionBounds } from './interaction';
+import {
+  type InteractionBounds,
+  padInteractionBounds,
+  selectHitMotionGroup,
+  transformInteractionBounds,
+  unionInteractionBounds,
+} from './interaction';
 
 let pluginRegistered = false;
+const MOTION_SAFETY_PADDING = 0.08;
+const IDENTITY_TRANSFORM = { a: 1, b: 0, c: 0, d: 1, tx: 0, ty: 0 };
+
+interface DrawableVisibilityModel {
+  getDrawableOpacity?: (index: number) => number;
+  getDrawableDynamicFlagIsVisible?: (index: number) => boolean;
+}
 
 export class Live2DRenderer implements CompanionRenderer {
   readonly id: string;
@@ -21,6 +34,7 @@ export class Live2DRenderer implements CompanionRenderer {
   private readonly interactionSurfaces = new Map<string, HTMLDivElement>();
   private app: PixiApplication | null = null;
   private model: PixiLive2DModel | null = null;
+  private contentBounds: InteractionBounds | null = null;
   private observer: ResizeObserver | null = null;
   private lastState: CompanionSnapshot['state'] | null = null;
   private motionGeneration = 0;
@@ -86,12 +100,13 @@ export class Live2DRenderer implements CompanionRenderer {
         model.destroy({ children: true, texture: true, baseTexture: true });
         return;
       }
-      model.anchor.set(0.5, 0.5);
+      model.anchor.set(0, 0);
       app.stage.addChild(model);
       this.model = model;
+      this.contentBounds = this.measureContentBounds();
       options?.onIntrinsicSize?.({
-        width: model.internalModel.originalWidth,
-        height: model.internalModel.originalHeight,
+        width: this.contentBounds.width,
+        height: this.contentBounds.height,
       });
       model.on('hit', this.handleHitAreas);
       this.mountInteractionSurface(wrapper);
@@ -144,6 +159,7 @@ export class Live2DRenderer implements CompanionRenderer {
     this.model?.off('hit', this.handleHitAreas);
     this.model?.destroy({ children: true, texture: true, baseTexture: true });
     this.model = null;
+    this.contentBounds = null;
     this.app?.destroy({ removeView: true }, { children: true });
     this.app = null;
     this.wrapper?.remove();
@@ -153,17 +169,51 @@ export class Live2DRenderer implements CompanionRenderer {
 
   private fit(): void {
     if (this.wrapper === null || this.app === null || this.model === null) return;
-    const bounds = this.model.getLocalBounds();
+    const bounds = this.contentBounds ?? this.measureContentBounds();
     const width = bounds.width;
     const height = bounds.height;
     if (width <= 0 || height <= 0) return;
     const scale = Math.min(
-      (this.wrapper.clientWidth * 0.92) / width,
-      (this.wrapper.clientHeight * 0.94) / height,
+      this.wrapper.clientWidth / width,
+      this.wrapper.clientHeight / height,
     ) * this.scaleMultiplier;
     this.model.scale.set(scale);
-    this.model.position.set(this.app.screen.width / 2, this.app.screen.height / 2);
+    this.model.position.set(
+      this.app.screen.width / 2 - (bounds.x + bounds.width / 2) * scale,
+      this.app.screen.height / 2 - (bounds.y + bounds.height / 2) * scale,
+    );
     this.updateInteractionBounds();
+  }
+
+  private measureContentBounds(): InteractionBounds {
+    if (this.model === null) {
+      return { x: 0, y: 0, width: 1, height: 1 };
+    }
+    const internalModel = this.model.internalModel;
+    const coreModel = internalModel.coreModel as DrawableVisibilityModel;
+    const visibleDrawables: InteractionBounds[] = [];
+
+    for (const id of internalModel.getDrawableIDs()) {
+      const index = internalModel.getDrawableIndex(id);
+      if (index < 0) continue;
+      const opacity = coreModel.getDrawableOpacity?.(index);
+      if (opacity !== undefined && opacity <= 0.001) continue;
+      if (coreModel.getDrawableDynamicFlagIsVisible?.(index) === false) continue;
+      visibleDrawables.push(internalModel.getDrawableBounds(index));
+    }
+
+    const canvasBounds = unionInteractionBounds(visibleDrawables) ?? {
+      x: 0,
+      y: 0,
+      width: internalModel.originalWidth,
+      height: internalModel.originalHeight,
+    };
+    const localBounds = transformInteractionBounds(
+      canvasBounds,
+      internalModel.localTransform,
+      IDENTITY_TRANSFORM,
+    );
+    return padInteractionBounds(localBounds, MOTION_SAFETY_PADDING);
   }
 
   private mountInteractionSurface(wrapper: HTMLDivElement): void {

@@ -18,6 +18,47 @@ export interface InteractionTransform {
   ty: number;
 }
 
+export function unionInteractionBounds(
+  candidates: Iterable<InteractionBounds>,
+): InteractionBounds | undefined {
+  let left = Number.POSITIVE_INFINITY;
+  let top = Number.POSITIVE_INFINITY;
+  let right = Number.NEGATIVE_INFINITY;
+  let bottom = Number.NEGATIVE_INFINITY;
+
+  for (const bounds of candidates) {
+    if (
+      !Number.isFinite(bounds.x)
+      || !Number.isFinite(bounds.y)
+      || !Number.isFinite(bounds.width)
+      || !Number.isFinite(bounds.height)
+      || bounds.width <= 0
+      || bounds.height <= 0
+    ) continue;
+    left = Math.min(left, bounds.x);
+    top = Math.min(top, bounds.y);
+    right = Math.max(right, bounds.x + bounds.width);
+    bottom = Math.max(bottom, bounds.y + bounds.height);
+  }
+
+  if (!Number.isFinite(left) || !Number.isFinite(top)) return undefined;
+  return { x: left, y: top, width: right - left, height: bottom - top };
+}
+
+export function padInteractionBounds(
+  bounds: InteractionBounds,
+  ratio: number,
+): InteractionBounds {
+  const paddingX = bounds.width * Math.max(0, ratio);
+  const paddingY = bounds.height * Math.max(0, ratio);
+  return {
+    x: bounds.x - paddingX,
+    y: bounds.y - paddingY,
+    width: bounds.width + paddingX * 2,
+    height: bounds.height + paddingY * 2,
+  };
+}
+
 function applyTransform(
   transform: InteractionTransform,
   point: { x: number; y: number },

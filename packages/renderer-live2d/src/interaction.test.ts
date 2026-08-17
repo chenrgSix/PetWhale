@@ -1,5 +1,36 @@
 import { describe, expect, it } from 'vitest';
-import { selectHitMotionGroup, transformInteractionBounds } from './interaction';
+import {
+  padInteractionBounds,
+  selectHitMotionGroup,
+  transformInteractionBounds,
+  unionInteractionBounds,
+} from './interaction';
+
+describe('unionInteractionBounds', () => {
+  it('combines drawable bounds while ignoring invalid and empty entries', () => {
+    expect(unionInteractionBounds([
+      { x: 10, y: 20, width: 30, height: 40 },
+      { x: -5, y: 25, width: 20, height: 10 },
+      { x: 0, y: 0, width: 0, height: 10 },
+      { x: Number.NaN, y: 0, width: 10, height: 10 },
+    ])).toEqual({ x: -5, y: 20, width: 45, height: 40 });
+  });
+
+  it('returns undefined when no drawable has a usable area', () => {
+    expect(unionInteractionBounds([
+      { x: 0, y: 0, width: 0, height: 10 },
+    ])).toBeUndefined();
+  });
+});
+
+describe('padInteractionBounds', () => {
+  it('adds motion-safe padding on every side', () => {
+    expect(padInteractionBounds(
+      { x: 10, y: 20, width: 100, height: 50 },
+      0.1,
+    )).toEqual({ x: 0, y: 15, width: 120, height: 60 });
+  });
+});
 
 describe('selectHitMotionGroup', () => {
   it('maps a body hit to the conventional TapBody motion group', () => {
