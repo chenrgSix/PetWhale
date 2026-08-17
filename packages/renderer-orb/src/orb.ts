@@ -69,6 +69,7 @@ export class OrbRenderer implements CompanionRenderer {
     if (this.disposed) return;
     this.container = container as HTMLElement;
     this.scale = options?.scale ?? 1;
+    options?.onIntrinsicSize?.({ width: 1, height: 1 });
     if (options?.radius) this.baseRadius = options.radius;
     this.reducedMotion = options?.reducedMotion ?? false;
 

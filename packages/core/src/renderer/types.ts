@@ -7,11 +7,18 @@ import type { CompanionAction, CompanionSnapshot } from '../state/types';
  */
 export type CompanionContainer = object;
 
+export interface CompanionIntrinsicSize {
+  width: number;
+  height: number;
+}
+
 export interface CompanionRendererOptions {
   /** Uniform scale multiplier applied by the renderer. */
   scale?: number;
   /** Renderer should avoid animation (prefers-reduced-motion). */
   reducedMotion?: boolean;
+  /** Reports the renderer's unscaled content dimensions to the host. */
+  onIntrinsicSize?: (size: CompanionIntrinsicSize) => void;
 }
 
 /**

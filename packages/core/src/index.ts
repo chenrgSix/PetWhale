@@ -12,6 +12,7 @@ export type { CompanionSource } from './source/types';
 
 export type {
   CompanionContainer,
+  CompanionIntrinsicSize,
   CompanionRenderer,
   CompanionRendererOptions,
 } from './renderer/types';

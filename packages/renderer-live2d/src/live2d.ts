@@ -89,6 +89,10 @@ export class Live2DRenderer implements CompanionRenderer {
       model.anchor.set(0.5, 0.5);
       app.stage.addChild(model);
       this.model = model;
+      options?.onIntrinsicSize?.({
+        width: model.internalModel.originalWidth,
+        height: model.internalModel.originalHeight,
+      });
       model.on('hit', this.handleHitAreas);
       this.mountInteractionSurface(wrapper);
       this.fit();

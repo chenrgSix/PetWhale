@@ -57,7 +57,6 @@ export class SpriteRenderer implements CompanionRenderer {
     });
 
     const image = document.createElement('img');
-    image.src = this.pet.src;
     image.alt = this.pet.label;
     image.draggable = false;
     image.dataset.petId = this.pet.id;
@@ -70,6 +69,15 @@ export class SpriteRenderer implements CompanionRenderer {
       WebkitUserDrag: 'none',
       filter: 'drop-shadow(0 8px 10px rgba(0, 0, 0, 0.28))',
     });
+    image.addEventListener('load', () => {
+      if (image.naturalWidth > 0 && image.naturalHeight > 0) {
+        options?.onIntrinsicSize?.({
+          width: image.naturalWidth,
+          height: image.naturalHeight,
+        });
+      }
+    }, { once: true });
+    image.src = this.pet.src;
 
     wrapper.appendChild(image);
     host.appendChild(wrapper);
