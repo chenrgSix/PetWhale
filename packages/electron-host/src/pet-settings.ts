@@ -1,3 +1,4 @@
+/** Shared settings contract for any Electron host embedding PetWhale. */
 export const PET_CHOICES = [
   { id: 'orb', label: '能量球' },
   { id: 'whale', label: '蓝色小鲸' },

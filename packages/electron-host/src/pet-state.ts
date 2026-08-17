@@ -1,8 +1,7 @@
 /**
- * Local structural mirror of @petwhale/core's CompanionSnapshot — the shared
- * module must stay dependency-free so both the Electron main (CJS, no
- * workspace paths) and the renderer can compile it. The shapes are identical
- * to the core types; the renderer casts at the IPC boundary.
+ * Dependency-free structural mirror of @petwhale/core's CompanionSnapshot.
+ * Electron hosts can use this in their main process without importing a DOM
+ * renderer or coupling their lifecycle to the standalone PetWhale app.
  */
 export interface PetSnapshot {
   state:

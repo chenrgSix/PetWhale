@@ -74,7 +74,7 @@ function modelJson(): string {
   });
 }
 
-describe('validateLive2DArchive', () => {
+describe('reusable validateLive2DArchive', () => {
   it('validates model references and PetWhale state mappings', () => {
     const archive = zip({
       'petwhale.json': JSON.stringify({

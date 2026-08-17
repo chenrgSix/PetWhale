@@ -1,0 +1,40 @@
+{
+  "name": "@petwhale/electron-host",
+  "version": "0.0.1",
+  "description": "Reusable Electron host primitives for embedding PetWhale without owning an application lifecycle",
+  "type": "module",
+  "main": "./lib/index.cjs",
+  "module": "./lib/index.mjs",
+  "types": "./lib/index.d.mts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.mts",
+      "import": "./lib/index.mjs",
+      "require": "./lib/index.cjs"
+    },
+    "./settings": {
+      "types": "./lib/settings.d.mts",
+      "import": "./lib/settings.mjs",
+      "require": "./lib/settings.cjs"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib"
+  ],
+  "sideEffects": false,
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --root ../.. packages/electron-host/src"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsdown": "^0.22.14",
+    "typescript": "^5.9.0",
+    "vitest": "^4.0.0"
+  }
+}

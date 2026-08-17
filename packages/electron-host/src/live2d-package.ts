@@ -1,3 +1,4 @@
+/** Safe, Electron-independent validation for user-supplied Live2D archives. */
 import { inflateRawSync } from 'node:zlib';
 import { basename, dirname, posix } from 'node:path';
 

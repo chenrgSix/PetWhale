@@ -35,6 +35,9 @@ importers:
       '@petwhale/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@petwhale/electron-host':
+        specifier: workspace:*
+        version: link:../../packages/electron-host
       '@petwhale/renderer-live2d':
         specifier: workspace:*
         version: link:../../packages/renderer-live2d
@@ -106,6 +109,21 @@ importers:
       react:
         specifier: ^19.0.0
         version: 19.2.8
+      tsdown:
+        specifier: ^0.22.14
+        version: 0.22.14(typescript@5.9.2)
+      typescript:
+        specifier: ^5.9.0
+        version: 5.9.2
+      vitest:
+        specifier: ^4.0.0
+        version: 4.1.10(@types/node@22.20.1)(vite@7.3.6(@types/node@22.20.1)(yaml@2.9.0))
+
+  packages/electron-host:
+    devDependencies:
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.20.1
       tsdown:
         specifier: ^0.22.14
         version: 0.22.14(typescript@5.9.2)

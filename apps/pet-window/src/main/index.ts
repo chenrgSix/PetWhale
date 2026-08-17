@@ -30,22 +30,21 @@ import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } fr
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
-import { PetStateTracker, parseHostFrame } from '../shared/pet-state';
-import {
-  DEFAULT_PET_SETTINGS,
-  isPetChoiceId,
-  normalizePetSettings,
-  petMenuOptions,
-  type PetChoiceId,
-  type PetSettings,
-} from '../shared/pet-settings';
-import { listeningPorts } from './listening-ports';
 import {
   CustomPetStore,
+  DEFAULT_PET_SETTINGS,
+  PetStateTracker,
   detectPetImage,
+  isPetChoiceId,
+  normalizePetSettings,
+  parseHostFrame,
+  petMenuOptions,
   type CustomPetRecord,
   type CustomPetRendererConfig,
-} from './custom-pets';
+  type PetChoiceId,
+  type PetSettings,
+} from '@petwhale/electron-host';
+import { listeningPorts } from './listening-ports';
 
 protocol.registerSchemesAsPrivileged([{
   scheme: 'petwhale-live2d',

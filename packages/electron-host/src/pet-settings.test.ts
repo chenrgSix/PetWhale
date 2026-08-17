@@ -5,7 +5,7 @@ import {
   petMenuOptions,
 } from './pet-settings';
 
-describe('normalizePetSettings', () => {
+describe('shared normalizePetSettings', () => {
   it('migrates existing settings without a pet to Orb', () => {
     expect(normalizePetSettings({ locked: true, size: 'small' })).toEqual({
       locked: true,

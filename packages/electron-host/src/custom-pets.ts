@@ -12,7 +12,7 @@ import {
 } from 'node:fs';
 import { basename, dirname, extname, join, relative, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import type { CustomPetChoiceId } from '../shared/pet-settings';
+import type { CustomPetChoiceId } from './pet-settings';
 import {
   LIVE2D_STATES,
   validateLive2DArchive,

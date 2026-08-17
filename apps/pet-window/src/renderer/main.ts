@@ -11,7 +11,7 @@ import {
   isSpritePetId,
   spritePetById,
 } from '@petwhale/renderer-sprite';
-import { isPetChoiceId, type PetChoiceId } from '../shared/pet-settings';
+import { isPetChoiceId, type PetChoiceId } from '@petwhale/electron-host/settings';
 import { IpcPetSource } from './pet-source';
 
 declare global {

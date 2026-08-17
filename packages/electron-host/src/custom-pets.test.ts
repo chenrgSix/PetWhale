@@ -33,7 +33,7 @@ describe('detectPetImage', () => {
   });
 });
 
-describe('CustomPetStore', () => {
+describe('reusable CustomPetStore', () => {
   it('copies, reloads, resolves and removes an imported pet', () => {
     const root = temporaryRoot();
     const source = join(root, 'My Whale.not-really-png');
