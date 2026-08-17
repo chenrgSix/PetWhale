@@ -238,12 +238,12 @@ export class Live2DRenderer implements CompanionRenderer {
   }
 
   private readonly handleInteractionClick = (event: MouseEvent): void => {
-    if (event.button !== 0 || this.app === null || this.model === null) return;
-    const canvasBounds = this.app.canvas.getBoundingClientRect();
-    if (canvasBounds.width <= 0 || canvasBounds.height <= 0) return;
-    const x = ((event.clientX - canvasBounds.left) / canvasBounds.width) * this.app.screen.width;
-    const y = ((event.clientY - canvasBounds.top) / canvasBounds.height) * this.app.screen.height;
-    this.model.tap(x, y);
+    if (event.button !== 0 || this.model === null) return;
+    const surface = event.currentTarget;
+    if (!(surface instanceof HTMLElement)) return;
+    const hitArea = surface.dataset.hitArea;
+    if (hitArea === undefined) return;
+    this.handleHitAreas([hitArea]);
   };
 
   private readonly handleHitAreas = (hitAreas: string[]): void => {
