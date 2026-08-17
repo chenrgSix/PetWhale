@@ -292,6 +292,10 @@ function live2DContentType(path: string): string {
     case 'wav': return 'audio/wav';
     case 'mp3': return 'audio/mpeg';
     case 'ogg': return 'audio/ogg';
+    case 'm4a': return 'audio/mp4';
+    case 'aac': return 'audio/aac';
+    case 'flac': return 'audio/flac';
+    case 'webm': return 'audio/webm';
     default: return 'application/octet-stream';
   }
 }
@@ -679,11 +683,13 @@ app.whenReady().then(() => {
               petId: image?.dataset.petId ?? canvas?.dataset.petId ?? 'orb',
               companionState: canvas?.dataset.companionState ?? null,
               motionGroup: canvas?.dataset.motionGroup ?? null,
+              audioStatus: canvas?.dataset.audioStatus ?? null,
               status: src,
             };
           })()
-        `)) as { center: number[] | null; live2DReady: boolean; imageReady: boolean; petId: string; companionState: string | null; motionGroup: string | null; status: string };
+        `)) as { center: number[] | null; live2DReady: boolean; imageReady: boolean; petId: string; companionState: string | null; motionGroup: string | null; audioStatus: string | null; status: string };
         const requestedState = process.env.PETWINDOW_SELF_TEST_STATE;
+        const requireAudio = process.env.PETWINDOW_SELF_TEST_REQUIRE_AUDIO === '1';
         const capture = await window.webContents.capturePage();
         const bitmap = capture.toBitmap();
         let capturePainted = false;
@@ -701,7 +707,7 @@ app.whenReady().then(() => {
         const painted = rendered && (
           requestedState === undefined ||
           (result.companionState === requestedState && result.motionGroup !== null)
-        );
+        ) && (!requireAudio || result.audioStatus === 'started');
         const outcome = {
           passed: painted,
           canvasCenter: result.center,
@@ -711,6 +717,7 @@ app.whenReady().then(() => {
           petId: result.petId,
           companionState: result.companionState,
           motionGroup: result.motionGroup,
+          audioStatus: result.audioStatus,
           status: result.status,
           connection: connectionDiagnostics(),
         };

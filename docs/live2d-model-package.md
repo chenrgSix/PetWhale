@@ -10,6 +10,8 @@ ZIP 中必须有且只能自动识别一个 `*.model3.json`；如果包含多个
 - 至少一张 PNG 纹理；
 - `.model3.json` 中声明的所有 motion、expression、physics、pose、display info、user data、motion sync 和音频资源。
 
+动作条目可使用 Cubism 标准的 `Sound` 字段绑定音效。支持 Chromium 可解码的 WAV、MP3、OGG、M4A/AAC、FLAC 和 WebM 音频；音频路径必须与其他模型资源一样位于 ZIP 内，且相对于 `.model3.json`。首次鼠标/触控宠物时会解锁 WebAudio，之后 Agent 状态切换和 HitArea 互动动作都会同步播放各自动作声明的音频。
+
 导入器按 ZIP 内容签名校验文件，不依赖 ZIP 扩展名。模型包最大 100 MB，解压后最大 250 MB，单文件最大 64 MB，最多 2048 个文件。加密、分卷、ZIP64、符号链接、目录穿越、绝对路径、外部 URL 和 Windows 非法路径会被拒绝。
 
 ## Agent 状态动作映射

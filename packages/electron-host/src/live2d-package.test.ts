@@ -74,6 +74,14 @@ function modelJson(): string {
   });
 }
 
+function modelWithSoundJson(): string {
+  const model = JSON.parse(modelJson()) as {
+    FileReferences: { Motions: { Talk: Array<Record<string, string>> } };
+  };
+  model.FileReferences.Motions.Talk[0]!.Sound = 'sounds/talk.wav';
+  return JSON.stringify(model);
+}
+
 describe('reusable validateLive2DArchive', () => {
   it('validates model references and PetWhale state mappings', () => {
     const archive = zip({
@@ -108,6 +116,35 @@ describe('reusable validateLive2DArchive', () => {
     });
     expect(() => validateLive2DArchive(archive, 'mao.zip')).toThrow(
       '模型引用的文件不存在：motions/talk.motion3.json',
+    );
+  });
+
+  it('keeps motion audio referenced by the model package', () => {
+    const archive = zip({
+      'Mao.model3.json': modelWithSoundJson(),
+      'Mao.moc3': 'MOC3-test',
+      'textures/texture_00.png': Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 13, 10, 26, 10]),
+      'motions/idle.motion3.json': '{}',
+      'motions/talk.motion3.json': '{}',
+      'sounds/talk.wav': Uint8Array.from([0x52, 0x49, 0x46, 0x46]),
+    });
+
+    const result = validateLive2DArchive(archive, 'mao-with-sound.zip');
+    expect(result.files.get('sounds/talk.wav')).toEqual(
+      Buffer.from([0x52, 0x49, 0x46, 0x46]),
+    );
+  });
+
+  it('rejects a package when its declared motion audio is missing', () => {
+    const archive = zip({
+      'Mao.model3.json': modelWithSoundJson(),
+      'Mao.moc3': 'MOC3-test',
+      'textures/texture_00.png': Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 13, 10, 26, 10]),
+      'motions/idle.motion3.json': '{}',
+      'motions/talk.motion3.json': '{}',
+    });
+    expect(() => validateLive2DArchive(archive, 'missing-sound.zip')).toThrow(
+      '模型引用的文件不存在：sounds/talk.wav',
     );
   });
 

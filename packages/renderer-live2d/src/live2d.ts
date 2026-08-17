@@ -7,6 +7,7 @@ import type {
 } from '@petwhale/core';
 import type { Application as PixiApplication } from 'pixi.js';
 import type { Live2DModel as PixiLive2DModel } from 'untitled-pixi-live2d-engine/cubism';
+import { type Live2DAudioController, loadLive2DAudio } from './audio';
 import { ensureLive2DCubismCore } from './core-loader';
 import type { Live2DMotionBinding, Live2DPetManifest } from './manifest';
 import {
@@ -34,6 +35,7 @@ export class Live2DRenderer implements CompanionRenderer {
   private readonly interactionSurfaces = new Map<string, HTMLDivElement>();
   private app: PixiApplication | null = null;
   private model: PixiLive2DModel | null = null;
+  private audio: Live2DAudioController | null = null;
   private contentBounds: InteractionBounds | null = null;
   private observer: ResizeObserver | null = null;
   private lastState: CompanionSnapshot['state'] | null = null;
@@ -67,9 +69,10 @@ export class Live2DRenderer implements CompanionRenderer {
       await ensureLive2DCubismCore();
       if (this.disposed) return;
       await import('pixi.js/unsafe-eval');
-      const [{ Application, extensions }, live2d] = await Promise.all([
+      const [{ Application, extensions }, live2d, audio] = await Promise.all([
         import('pixi.js'),
         import('untitled-pixi-live2d-engine/cubism'),
+        loadLive2DAudio(),
       ]);
       if (!pluginRegistered) {
         extensions.add(live2d.Live2DPlugin);
@@ -89,6 +92,8 @@ export class Live2DRenderer implements CompanionRenderer {
         return;
       }
       this.app = app;
+      this.audio = audio;
+      wrapper.addEventListener('pointerdown', this.handleAudioUnlock, true);
       app.canvas.dataset.petId = this.pet.id;
       app.canvas.dataset.renderer = 'live2d';
       wrapper.appendChild(app.canvas);
@@ -160,6 +165,8 @@ export class Live2DRenderer implements CompanionRenderer {
     this.model?.destroy({ children: true, texture: true, baseTexture: true });
     this.model = null;
     this.contentBounds = null;
+    this.wrapper?.removeEventListener('pointerdown', this.handleAudioUnlock, true);
+    this.audio = null;
     this.app?.destroy({ removeView: true }, { children: true });
     this.app = null;
     this.wrapper?.remove();
@@ -246,6 +253,10 @@ export class Live2DRenderer implements CompanionRenderer {
     this.handleHitAreas([hitArea]);
   };
 
+  private readonly handleAudioUnlock = (): void => {
+    void this.audio?.resume();
+  };
+
   private readonly handleHitAreas = (hitAreas: string[]): void => {
     if (hitAreas.length === 0 || this.model === null) return;
     const hitArea = hitAreas[0];
@@ -315,13 +326,29 @@ export class Live2DRenderer implements CompanionRenderer {
     generation: number,
   ): Promise<void> {
     if (this.model === null) return;
+    await this.audio?.resume();
     const { MotionPriority } = await import('untitled-pixi-live2d-engine/cubism');
     if (this.disposed || generation !== this.motionGeneration || this.model === null) return;
-    await this.model.motion(
+    const started = await this.model.motion(
       binding.group,
       binding.index,
       idle ? MotionPriority.IDLE : MotionPriority.FORCE,
-      { loop: binding.loop ?? idle },
+      {
+        loop: binding.loop ?? idle,
+        onError: (error) => {
+          if (this.app !== null) this.app.canvas.dataset.audioStatus = 'error';
+          console.error('[Live2DRenderer] failed to play motion audio', error);
+        },
+      },
     );
+    if (
+      this.app !== null
+      && generation === this.motionGeneration
+      && started
+      && this.app.canvas.dataset.audioStatus !== 'error'
+    ) {
+      this.app.canvas.dataset.audioStatus =
+        this.model.internalModel.motionManager.currentAudio === undefined ? 'none' : 'started';
+    }
   }
 }
